@@ -1,0 +1,153 @@
+﻿@page "/police"
+@inherits BasePage
+
+@attribute [Authorize(Roles = $"{RoleValues.Police},{RoleValues.Administrator}")]
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Police home</PageTitle>
+}
+
+@if (_user is not null)
+{
+    <LinkAlert User="_user"/>
+
+    <Heading Size="HeadingSize.Is1">Welcome back, officer</Heading>
+    <Text>View all criminal records, criminals, callouts and go in and out of duty.</Text>
+    <Divider Margin="Margin.Is4.FromBottom"/>
+
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Recent police reports</Heading>
+
+    @if (_reports is not null)
+    {
+        <Table Margin="Margin.Is4.FromTop">
+            <TableHeader ThemeContrast="ThemeContrast.Dark">
+                <TableRow>
+                    <TableHeaderCell>Description</TableHeaderCell>
+                    <TableHeaderCell>Area</TableHeaderCell>
+                    <TableHeaderCell>Postal</TableHeaderCell>
+                    <TableHeaderCell>Reporter</TableHeaderCell>
+                    <TableHeaderCell>Date</TableHeaderCell>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                <Virtualize TItem="EmergencyReport" Items="_reports" Context="report">
+                    <ItemContent>
+                        <TableRow>
+                            <TableRowCell>@report.Description</TableRowCell>
+                            <TableRowCell>@report.Area</TableRowCell>
+                            <TableRowCell>@report.PostCode</TableRowCell>
+                            <TableRowCell>
+                                <a href="/police/identity/@report.ReportingIdentity.Id">@report.ReportingIdentity.FirstName @report.ReportingIdentity.LastName</a>
+                            </TableRowCell>
+                            <TableRowCell>@report.DateCreated</TableRowCell>
+                        </TableRow>
+                    </ItemContent>
+                </Virtualize>
+            </TableBody>
+        </Table>
+    }
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Criminal records</Heading>
+
+    <Validations Mode="ValidationMode.Auto" Model="@_searchForm" StatusChanged="ValidationStateChanged">
+        <Addons>
+            <Addon AddonType="AddonType.Body">
+                <DataAnnotationsValidator/>
+                <Validation>
+                    <TextEdit Role="TextRole.Search" @bind-Text="_searchForm.Query" Disabled="_searchForm.IsProcessing" Placeholder="Search by offence, action, offender, officer, etc."/>
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </Validation>
+            </Addon>
+            <Addon AddonType="AddonType.End">
+                <Button Clicked="SubmitCallbackAsync" Type="ButtonType.Submit" Loading="_searchForm.IsProcessing" Disabled="@(_searchForm.IsProcessing || !_searchForm.IsValid)" Color="Color.Secondary">Search</Button>
+            </Addon>
+        </Addons>
+    </Validations>
+
+    @if (_criminalRecords is not null)
+    {
+        <Table Margin="Margin.Is4.FromTop">
+            <TableHeader ThemeContrast="ThemeContrast.Dark">
+                <TableRow>
+                    <TableHeaderCell>Offender</TableHeaderCell>
+                    <TableHeaderCell>Action</TableHeaderCell>
+                    <TableHeaderCell>Offence</TableHeaderCell>
+                    <TableHeaderCell>Officer</TableHeaderCell>
+                    <TableHeaderCell>Date</TableHeaderCell>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                <Virtualize TItem="CriminalRecord" Items="_criminalRecords" Context="record">
+                    <ItemContent>
+                        <TableRow>
+                            <TableRowCell>
+                                <a href="/police/identity/@record.Offender.Id">@record.Offender.FirstName @record.Offender.LastName</a>
+                            </TableRowCell>
+                            <TableRowCell>@record.Action</TableRowCell>
+                            <TableRowCell>@record.Offence</TableRowCell>
+                            <TableRowCell>
+                                <a href="/police/identity/@record.Officer.Id">@record.Officer.FirstName @record.Officer.LastName</a>
+                            </TableRowCell>
+                            <TableRowCell>@record.DateCreated</TableRowCell>
+                        </TableRow>
+                    </ItemContent>
+                </Virtualize>
+            </TableBody>
+        </Table>
+    }
+}
+
+@code {
+
+    private List<CriminalRecord>? _criminalRecords;
+    private List<EmergencyReport>? _reports;
+    private UserProfile? _user;
+    private readonly SearchForm _searchForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var userTask = client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        var recordTask = client.GetJsonAsync<List<CriminalRecord>>("identities/criminal-records", CancellationToken.Token);
+        var reportsTask = client.GetJsonAsync<List<EmergencyReport>>("emergency/reports", CancellationToken.Token);
+
+        await Task.WhenAll(userTask, recordTask, reportsTask);
+
+        _user = userTask.Result;
+        _reports = reportsTask.Result?.OrderByDescending(x => x.DateCreated).ToList();
+        _criminalRecords = recordTask.Result;
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _searchForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_searchForm.IsValid || _searchForm.IsProcessing) return;
+
+        _searchForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.GetJsonAsync<List<CriminalRecord>>($"identities/criminal-records/{_searchForm.Query}");
+
+        _criminalRecords = response;
+
+        _searchForm.IsProcessing = false;
+    }
+
+
+
+}

@@ -1,0 +1,32 @@
+<Project Sdk="CitizenFX.Sdk.Client/0.2.3">
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Include="../Shared/**/*.cs" />
+        <Compile Update="..\Shared\Models\Identity.cs">
+            <Link>Models\Identity.cs</Link>
+        </Compile>
+        <Compile Update="..\Shared\Models\PlayerIdentity.cs">
+            <Link>Models\PlayerIdentity.cs</Link>
+        </Compile>
+        <Compile Update="..\Shared\Models\BlipInfo.cs">
+            <Link>Models\BlipInfo.cs</Link>
+        </Compile>
+        <Compile Update="Models\BlipInfo.cs">
+            <Link>Models\BlipInfo.cs</Link>
+        </Compile>
+        <Compile Update="..\Shared\Responses\IdentityResponse.cs">
+            <Link>Responses\IdentityResponse.cs</Link>
+        </Compile>
+        <Compile Update="..\Shared\Responses\ValidationErrorResponse.cs">
+            <Link>Responses\ValidationErrorResponse.cs</Link>
+        </Compile>
+        <Compile Remove="..\Shared\Utils\**" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Newtonsoft.Json" Version="11.0.1" />
+        <PackageReference Update="CitizenFX.Core.Client" Version="1.0.5652" />
+    </ItemGroup>
+</Project>

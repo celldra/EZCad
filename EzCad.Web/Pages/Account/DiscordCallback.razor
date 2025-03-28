@@ -1,0 +1,46 @@
+﻿@page "/user/external/discord-callback"
+
+@attribute [Authorize]
+@inherits BasePage
+
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject IMessageService MessageService
+@inject IHttpClientFactory Factory
+
+<Heading Size="HeadingSize.Is1">One moment...</Heading>
+<Text>We're checking if your Discord authorization is valid, this will only take a moment</Text>
+
+@code {
+
+    [Parameter]
+    public string? Code { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("code", out var code))
+        {
+            Code = code;
+        }
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PutJsonAsync<ErrorResponse>($"/external/discord/{code}", null, CancellationToken.Token);
+
+        if (response is {Success: true })
+        {
+            NavigationManager.NavigateTo("/user/external");
+        }
+        else
+        {
+            await MessageService.Error(response?.Message, "Failed to link your account", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+    }
+
+}

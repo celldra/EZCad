@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="6.22.0" />
+        <PackageReference Include="Microsoft.JSInterop" Version="6.0.8" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.22.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\EzCad.Database\EzCad.Database.csproj" />
+        <ProjectReference Include="..\EzCad.Redis\EzCad.Redis.csproj" />
+        <ProjectReference Include="..\EzCad.Shared\EzCad.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Microsoft.JSInterop">
+            <HintPath>..\..\..\..\..\..\Program Files\dotnet\shared\Microsoft.AspNetCore.App\6.0.5\Microsoft.JSInterop.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+
+</Project>

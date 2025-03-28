@@ -1,0 +1,127 @@
+﻿@page "/user/external"
+
+@inherits BasePage
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject IMessageService MessageService
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - External services</PageTitle>
+
+
+    @if (_user is not null)
+    {
+        <LinkAlert User="_user"/>
+
+        <Heading Size="HeadingSize.Is1">External services</Heading>
+        <Text>Find below a list of external services that can be connected to your account</Text>
+        <Divider Margin="Margin.Is4.FromBottom"/>
+
+        <Column>
+            <Card Class="mb-3">
+                <CardHeader Class="p-3">
+                    FiveM
+                </CardHeader>
+                <CardBody>
+                    <CardText>
+                        @if (_user.IsLinked)
+                        {
+                            <Text>
+                                <b>Link ID: </b>@_user.License
+                            </Text>
+                        }
+                        else
+                        {
+                            <Text>Run <Code>/link-cad @_user.Id</Code> in-game to link your FiveM account</Text>
+                        }
+                    </CardText>
+                </CardBody>
+            </Card>
+            <Card>
+                <CardHeader Class="p-3">
+                    Discord
+                </CardHeader>
+                <CardBody>
+                    <CardText>
+                        @if (_user.DiscordId is not null)
+                        {
+                            <Text>
+                                <b>Link ID: </b>@_user.DiscordId
+                            </Text>
+                        }
+                        else
+                        {
+                            <Text>
+                                Your Discord is not linked, you can link it to gain access to signing in with Discord
+                            </Text>
+                        }
+                    </CardText>
+                    <Buttons Class="mt-3">
+
+                        @if (_user.DiscordId is not null)
+                        {
+                            <Button Type="ButtonType.Button" Clicked="UnlinkDiscordAsync" Disabled="_isUnlinkingService" Loading="_isUnlinkingService" Color="Color.Danger">Unlink</Button>
+                        }
+                        else
+                        {
+                            <Button Type="ButtonType.Link" To="@Configuration.DiscordRedirectUrl" Color="Color.Primary">Link</Button>
+                        }
+
+                    </Buttons>
+                </CardBody>
+            </Card>
+        </Column>
+    }
+}
+
+@code {
+
+    private UserProfile? _user;
+    private bool _isUnlinkingService;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = Factory.CreateClient("api");
+            client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+            _user = await client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        }
+        catch (Exception)
+        {
+            NavigationManager.NavigateTo("/login");
+        }
+    }
+
+    private async Task UnlinkDiscordAsync()
+    {
+        if (_user is null) return;
+
+        _isUnlinkingService = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.DeleteAsync("/external/discord", CancellationToken.Token);
+        if (response.StatusCode != HttpStatusCode.NoContent)
+        {
+            await MessageService.Error("Unable to unlink your Discord account, it may have not been linked in the first place.", "Failed to unlink service", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            _user.DiscordId = null;
+            _isUnlinkingService = false;
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+}

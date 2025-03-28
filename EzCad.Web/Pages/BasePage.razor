@@ -1,0 +1,22 @@
+﻿@implements IDisposable
+
+@inject IHttpClientFactory Factory
+
+@code {
+
+    protected FrontendConfiguration? Configuration { get; private set; }
+
+    protected readonly CancellationTokenSource CancellationToken = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var client = Factory.CreateClient("api");
+        Configuration = await client.GetJsonAsync<FrontendConfiguration>("config", CancellationToken.Token);
+    }
+
+    public void Dispose()
+    {
+        CancellationToken.Cancel();
+    }
+
+}

@@ -1,0 +1,18 @@
+{
+	"api_base_url": "http://localhost:7007/",
+	"routine_message": "Want to get announcements, activity pings and chat with our community? Join our Discord!",
+	"cad_not_linked_message": "You need to link your FiveM account to your CAD account, you'll be kicked within 5 minutes of joining if this does not change",
+	"server_name": "EzCad",
+	"cad_not_linked_card_text": "We warmly welcome you to our server!",
+	"discord_url": "https://discord.gg/",
+	"cad_url": "http://localhost:7288/",
+	"rich_presence":
+	{
+		"is_enabled": true,
+		"client_id": 984100674893672520,
+		"state": "Cruising down {0} as {1}",
+		"action_text": "Join our Discord",
+		"action_url": "https://discord.gg/",
+		"asset_name": "logo"
+	}
+}

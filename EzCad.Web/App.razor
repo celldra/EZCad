@@ -1,0 +1,62 @@
+﻿@inject IHttpClientFactory Factory
+
+<Blazorise.ThemeProvider Theme="@_theme">
+    <CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(App).Assembly">
+            <Found Context="routeData">
+                <FocusOnNavigate RouteData="@routeData" Selector="h1"/>
+                <AuthorizeRouteView DefaultLayout="@typeof(MainLayout)"
+                                    RouteData="@routeData">
+                    <NotAuthorized>
+                        <PageTitle>Not authorized</PageTitle>
+
+                        <Card Padding="Padding.Is4" Margin="Margin.Is3.FromBottom">
+                            <Icon Name="IconName.EyeSlash" TextAlignment="TextAlignment.Center" Margin="Margin.Is2.FromBottom" IconSize="IconSize.x3"/>
+                            <Heading Size="HeadingSize.Is5" TextAlignment="TextAlignment.Center">Not authorized</Heading>
+                            <Text TextAlignment="TextAlignment.Center">Unfortunately, you're not authorized to view this page. You may need to <a href="/login">login</a> first</Text>
+                        </Card>
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+            </Found>
+            <NotFound>
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <PageTitle>Not found</PageTitle>
+
+                    <Card Padding="Padding.Is4" Margin="Margin.Is3.FromBottom">
+                        <Icon Name="IconName.QuestionCircle" TextAlignment="TextAlignment.Center" Margin="Margin.Is2.FromBottom" IconSize="IconSize.x3"/>
+                        <Heading Size="HeadingSize.Is5" TextAlignment="TextAlignment.Center">Not found</Heading>
+                        <Text TextAlignment="TextAlignment.Center">The page requested could not be found, you might want to <a href="/">go back home</a></Text>
+                    </Card>
+                </LayoutView>
+            </NotFound>
+        </Router>
+        
+        <MessageAlert/>
+    </CascadingAuthenticationState>
+</Blazorise.ThemeProvider>
+
+@code{
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var client = Factory.CreateClient("api");
+        var configuration = await client.GetFromJsonAsync<Configuration>("config");
+
+        _theme = new Theme
+        {
+            IsRounded = true,
+            ColorOptions = new ThemeColorOptions
+            {
+                Primary = configuration?.PrimaryHexColor
+            },
+            Enabled = true,
+            TextColorOptions = new ThemeTextColorOptions
+            {
+                Primary = configuration?.PrimaryHexColor
+            }
+        };
+    }
+
+
+    private Theme _theme = new();
+}

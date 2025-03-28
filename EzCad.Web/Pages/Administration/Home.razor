@@ -1,0 +1,726 @@
+﻿@page "/admin"
+@inherits BasePage
+@attribute [Authorize(Roles = RoleValues.Administrator)]
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+@inject IMessageService MessageService
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Administrator home</PageTitle>
+}
+
+@if (_user is not null && _users is not null)
+{
+    <Heading Size="HeadingSize.Is1">Welcome back</Heading>
+    <Text>View all details about how the CAD and your server is performing.</Text>
+    <Divider Margin="Margin.Is4.FromBottom"/>
+    <Buttons Margin="Margin.Is4.FromBottom">
+        <Button Clicked="ShowManageRolesModal" Color="Color.Secondary" Type="ButtonType.Button">
+            Manage roles
+        </Button>
+        <Button Clicked="ShowManageJobsModal" Color="Color.Secondary" Type="ButtonType.Button">
+            Manage jobs
+        </Button>
+        <Button To="/admin/config" Color="Color.Secondary" Type="ButtonType.Link">
+            Edit configuration
+        </Button>
+    </Buttons>
+
+    <Row Margin="Margin.Is4.FromBottom">
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Users</CardTitle>
+                    <CardText>
+                        @_users.Count
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">New users today</CardTitle>
+                    <CardText>
+                        @_todayUsers!.Count
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">CAD authorized logins today</CardTitle>
+                    <CardText>
+                        @_todayLogins!.Count
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+    </Row>
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Today's server logins</Heading>
+
+    <Validations Mode="ValidationMode.Auto" Model="@_loginSearchForm" StatusChanged="LoginValidationStateChanged">
+        <Addons>
+            <Addon AddonType="AddonType.Body">
+                <DataAnnotationsValidator/>
+                <Validation>
+                    <TextEdit Role="TextRole.Search" @bind-Text="_loginSearchForm.Query" Disabled="_loginSearchForm.IsProcessing" Placeholder="Search by license, username, email, etc."/>
+                </Validation>
+            </Addon>
+            <Addon AddonType="AddonType.End">
+                <Button Clicked="SubmitLoginSearchCallbackAsync" Type="ButtonType.Submit" Loading="_loginSearchForm.IsProcessing" Disabled="@(_loginSearchForm.IsProcessing || !_loginSearchForm.IsValid)" Color="Color.Secondary">Search</Button>
+            </Addon>
+        </Addons>
+    </Validations>
+
+    <Table Margin="Margin.Is4.FromTop.Is4.FromBottom">
+        <TableHeader ThemeContrast="ThemeContrast.Dark">
+            <TableRow>
+                <TableHeaderCell>FiveM name</TableHeaderCell>
+                <TableHeaderCell>CAD user</TableHeaderCell>
+                <TableHeaderCell>License</TableHeaderCell>
+                <TableHeaderCell>Date</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            <Virtualize TItem="Login" Items="_todayLogins" Context="login">
+                <ItemContent>
+                    <TableRow>
+                        <TableRowCell>@login.Name</TableRowCell>
+                        <TableRowCell>
+                            <a href="/admin/user/@login.HostUser.Id">@login.HostUser.UserName</a>
+                        </TableRowCell>
+                        <TableRowCell>@login.HostUser.LicenseId</TableRowCell>
+                        <TableRowCell>@login.DateCreated</TableRowCell>
+                    </TableRow>
+                </ItemContent>
+            </Virtualize>
+        </TableBody>
+    </Table>
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom.Is4.FromTop">Users (sorted by creation)</Heading>
+
+    <Validations Mode="ValidationMode.Auto" Model="@_userSearchForm" StatusChanged="UserValidationStateChanged">
+        <Addons>
+            <Addon AddonType="AddonType.Body">
+                <DataAnnotationsValidator/>
+                <Validation>
+                    <TextEdit Role="TextRole.Search" @bind-Text="_userSearchForm.Query" Disabled="_userSearchForm.IsProcessing" Placeholder="Search by license, username, email, etc."/>
+                </Validation>
+            </Addon>
+            <Addon AddonType="AddonType.End">
+                <Button Clicked="SubmitUserSearchCallbackAsync" Type="ButtonType.Submit" Loading="_userSearchForm.IsProcessing" Disabled="@(_userSearchForm.IsProcessing || !_userSearchForm.IsValid)" Color="Color.Secondary">Search</Button>
+            </Addon>
+        </Addons>
+    </Validations>
+
+    <Table Margin="Margin.Is4.FromTop">
+        <TableHeader ThemeContrast="ThemeContrast.Dark">
+            <TableRow>
+                <TableHeaderCell>Username</TableHeaderCell>
+                <TableHeaderCell>Email</TableHeaderCell>
+                <TableHeaderCell>License</TableHeaderCell>
+                <TableHeaderCell>Account created at</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            <Virtualize TItem="UserProfile" Items="_users" Context="user">
+                <ItemContent>
+                    <TableRow>
+                        <TableRowCell>
+                            <a href="/admin/user/@user.Id">@user.UserName</a>
+                        </TableRowCell>
+                        <TableRowCell>@user.Email</TableRowCell>
+                        <TableRowCell>
+                            @(user.IsLinked ? user.License : "Not linked to FiveM")
+                        </TableRowCell>
+                        <TableRowCell>@user.DateCreated</TableRowCell>
+                    </TableRow>
+                </ItemContent>
+            </Virtualize>
+        </TableBody>
+    </Table>
+
+    <Modal @ref="_manageRolesModalRef">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>Manage roles</ModalTitle>
+                <CloseButton/>
+            </ModalHeader>
+            <ModalBody>
+                <ListGroup Margin="Margin.Is4.FromBottom">
+                    <Virtualize TItem="UserRole" Items="_roles" Context="role">
+                        <ItemContent>
+                            <ListGroupItem Flex="Flex.JustifyContent.Between.AlignItems.Center">
+                                @role.Name
+
+                                @if (role.IsDefault)
+                                {
+                                    <Tooltip Text="Default roles cannot be deleted nor modified">
+                                        <Buttons>
+                                            <Button Disabled="true" Type="ButtonType.Button" Color="Color.Secondary">
+                                                Edit
+                                            </Button>
+                                            <Button Disabled="true" Type="ButtonType.Button" Color="Color.Danger">
+                                                Remove
+                                            </Button>
+                                        </Buttons>
+                                    </Tooltip>
+                                }
+                                else
+                                {
+                                    <Buttons>
+                                        <Button Clicked="() => ShowEditRolesModal(role)" Type="ButtonType.Button" Color="Color.Secondary">
+                                            Edit
+                                        </Button>
+                                        <Button Clicked="async () => await DeleteRoleAsync(role.Id)" Type="ButtonType.Button" Color="Color.Danger">
+                                            Remove
+                                        </Button>
+                                    </Buttons>
+                                }
+                            </ListGroupItem>
+                        </ItemContent>
+                    </Virtualize>
+                </ListGroup>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@HideManageRolesModal">Dismiss</Button>
+                <Button Clicked="ShowCreateRolesModal" Type="ButtonType.Submit" Color="Color.Primary">
+                    Create role
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+
+    <Modal @ref="_createRolesModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_addRoleForm" StatusChanged="AddRoleValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Create role</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Role name</FieldLabel>
+                            <TextEdit Disabled="_addRoleForm.IsProcessing" Role="TextRole.Text" @bind-Text="_addRoleForm.Role">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>This role will automatically be loaded as a group principal by the CAD sync script. Example <b>all lowercase:</b> <Code>group.rolename</Code></FieldHelp>
+                        </Field>
+                    </Validation>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideCreateRolesModal">Dismiss</Button>
+                    <Button Clicked="SubmitAddRoleCallbackAsync" Type="ButtonType.Submit" Loading="_addRoleForm.IsProcessing" Color="Color.Primary" Disabled="@(_addRoleForm.IsProcessing || !_addRoleForm.IsValid)">
+                        Add
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+
+    <Modal @ref="_editRolesModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_addRoleForm" StatusChanged="AddRoleValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Edit role</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Role name</FieldLabel>
+                            <TextEdit Disabled="_addRoleForm.IsProcessing" Role="TextRole.Text" @bind-Text="_addRoleForm.Role">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>This role will automatically be loaded as a group principal by the CAD sync script. Example <b>all lowercase:</b> <Code>group.rolename</Code></FieldHelp>
+                        </Field>
+                    </Validation>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideEditRolesModal">Dismiss</Button>
+                    <Button Clicked="SubmitEditRoleCallbackAsync" Type="ButtonType.Submit" Loading="_addRoleForm.IsProcessing" Color="Color.Primary" Disabled="@(_addRoleForm.IsProcessing || !_addRoleForm.IsValid)">
+                        Edit
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+
+
+    <Modal @ref="_manageJobsModalRef">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>Manage jobs</ModalTitle>
+                <CloseButton/>
+            </ModalHeader>
+            <ModalBody>
+                <ListGroup Margin="Margin.Is4.FromBottom">
+                    <Virtualize TItem="Job" Items="_jobs" Context="job">
+                        <ItemContent>
+                            <ListGroupItem Flex="Flex.JustifyContent.Between.AlignItems.Center">
+                                @job.Name
+
+                                <Buttons>
+                                    <Button Clicked="() => ShowEditJobsModal(job)" Type="ButtonType.Button" Color="Color.Secondary">
+                                        Edit
+                                    </Button>
+                                    <Button Clicked="async () => await DeleteJobAsync(job.Id)" Type="ButtonType.Button" Color="Color.Danger">
+                                        Remove
+                                    </Button>
+                                </Buttons>
+                            </ListGroupItem>
+                        </ItemContent>
+                    </Virtualize>
+                </ListGroup>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@HideManageJobsModal">Dismiss</Button>
+                <Button Clicked="ShowCreateJobsModal" Type="ButtonType.Submit" Color="Color.Primary">
+                    Create job
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+
+    <Modal @ref="_createJobsModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_addJobForm" StatusChanged="AddJobValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Create job</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Name</FieldLabel>
+                            <TextEdit Disabled="_addJobForm.IsProcessing" Role="TextRole.Text" @bind-Text="_addJobForm.Name">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>This will be shown on the menu as the name of the job</FieldHelp>
+                        </Field>
+
+                        <Field Class="mb-3">
+                            <FieldLabel>Salary</FieldLabel>
+                            <TextEdit Disabled="_addJobForm.IsProcessing" Role="TextRole.Text" @bind-Text="_addJobForm.Salary">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>This will be the amount of money the player will receive every hour for their job</FieldHelp>
+                        </Field>
+
+                        <Field Class="mb-3">
+                            <Switch TValue="bool" Disabled="_addJobForm.IsProcessing" @bind-Checked="_addJobForm.IsPublic">Public?</Switch>
+                        </Field>
+                    </Validation>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideCreateJobsModal">Dismiss</Button>
+                    <Button Clicked="SubmitAddJobCallbackAsync" Type="ButtonType.Submit" Loading="_addJobForm.IsProcessing" Color="Color.Primary" Disabled="@(_addJobForm.IsProcessing || !_addJobForm.IsValid)">
+                        Add
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+
+    <Modal @ref="_editJobsModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_addJobForm" StatusChanged="AddJobValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Edit job</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Name</FieldLabel>
+                            <TextEdit Disabled="_addJobForm.IsProcessing" Role="TextRole.Text" @bind-Text="_addJobForm.Name">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>This will be shown on the menu as the name of the job</FieldHelp>
+                        </Field>
+
+                        <Field Class="mb-3">
+                            <FieldLabel>Salary</FieldLabel>
+                            <TextEdit Disabled="_addJobForm.IsProcessing" Role="TextRole.Text" @bind-Text="_addJobForm.Salary">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>This will be the amount of money the player will receive every hour for their job</FieldHelp>
+                        </Field>
+
+                        <Field Class="mb-3">
+                            <Switch TValue="bool" Disabled="_addJobForm.IsProcessing" @bind-Checked="_addJobForm.IsPublic">Public?</Switch>
+                        </Field>
+                    </Validation>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideEditJobsModal">Dismiss</Button>
+                    <Button Clicked="SubmitEditJobCallbackAsync" Type="ButtonType.Submit" Loading="_addJobForm.IsProcessing" Color="Color.Primary" Disabled="@(_addJobForm.IsProcessing || !_addJobForm.IsValid)">
+                        Edit
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+}
+
+
+@code {
+
+    private List<UserProfile>? _users;
+    private List<UserProfile>? _todayUsers;
+    private List<Login>? _todayLogins;
+    private List<UserRole>? _roles;
+    private List<Job>? _jobs;
+    private UserProfile? _user;
+
+    private string? _selectedRoleId;
+    private string? _selectedJobId;
+
+    private readonly SearchForm _loginSearchForm = new();
+    private readonly SearchForm _userSearchForm = new();
+    private readonly JobForm _addJobForm = new();
+    private readonly AddRoleForm _addRoleForm = new();
+
+    private Modal? _manageRolesModalRef;
+    private Modal? _createRolesModalRef;
+    private Modal? _editRolesModalRef;
+
+    private Modal? _manageJobsModalRef;
+    private Modal? _createJobsModalRef;
+    private Modal? _editJobsModalRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var userTask = client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        var usersTask = client.GetJsonAsync<List<UserProfile>>("admin/users", CancellationToken.Token);
+        var loginTask = client.GetJsonAsync<List<Login>>("admin/analytics/logins", CancellationToken.Token);
+        var rolesTask = client.GetJsonAsync<List<UserRole>>("admin/roles", CancellationToken.Token);
+        var jobsTask = client.GetJsonAsync<List<Job>>("jobs", CancellationToken.Token);
+
+        await Task.WhenAll(userTask, usersTask, rolesTask, loginTask, jobsTask);
+
+        _user = userTask.Result;
+        _roles = rolesTask.Result;
+        _jobs = jobsTask.Result;
+
+        if (usersTask.Result is not null) _users = usersTask.Result.OrderByDescending(x => x.DateCreated).ToList();
+        if (loginTask.Result is not null) _todayLogins = loginTask.Result.OrderByDescending(x => x.DateCreated).ToList();
+        if (_users is not null) _todayUsers = _users.Where(x => x.DateCreated.Date == DateTime.UtcNow.Date).ToList();
+    }
+
+    private void LoginValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _loginSearchForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private void UserValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _userSearchForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private void AddRoleValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _addRoleForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private void AddJobValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _addJobForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private async Task DeleteRoleAsync(string roleId)
+    {
+        _roles?.RemoveAll(x => x.Id == roleId);
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.DeleteAsync($"/admin/roles/{roleId}", CancellationToken.Token);
+        if (response.StatusCode != HttpStatusCode.NoContent)
+        {
+            await MessageService.Error("Unable to delete the role, you should check logs for more information", "Failed to delete role", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+    }
+
+    private async Task SubmitAddRoleCallbackAsync()
+    {
+        if (!_addRoleForm.IsValid || _addRoleForm.IsProcessing) return;
+
+        _addRoleForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PostJsonAsync<ErrorResponse>("/admin/roles", _addRoleForm, CancellationToken.Token);
+
+        HideCreateRolesModal();
+
+        if (response is not null)
+        {
+            await MessageService.Error("Ensure that the name of the role is not already in-use", "Failed to create role", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            _roles = await client.GetJsonAsync<List<UserRole>>("admin/roles", CancellationToken.Token);
+        }
+
+        _addRoleForm.IsProcessing = false;
+    }
+
+    private async Task SubmitEditRoleCallbackAsync()
+    {
+        if (!_addRoleForm.IsValid || _addRoleForm.IsProcessing) return;
+
+        _addRoleForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PutJsonAsync<bool>($"/admin/roles/{_selectedRoleId}", _addRoleForm, CancellationToken.Token);
+        if (!response)
+        {
+            await MessageService.Error("Ensure that the name of the role is not already in-use", "Failed to create role", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            _roles = await client.GetJsonAsync<List<UserRole>>("admin/roles", CancellationToken.Token);
+        }
+
+        HideEditRolesModal();
+        ShowManageRolesModal();
+
+        _addRoleForm.IsProcessing = false;
+    }
+
+    private async Task SubmitLoginSearchCallbackAsync()
+    {
+        if (!_loginSearchForm.IsValid || _loginSearchForm.IsProcessing) return;
+
+        _loginSearchForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.GetJsonAsync<List<Login>>($"admin/logins/{_loginSearchForm.Query}");
+
+        _todayLogins = response;
+
+        _loginSearchForm.IsProcessing = false;
+    }
+
+    private async Task SubmitUserSearchCallbackAsync()
+    {
+        if (!_userSearchForm.IsValid || _userSearchForm.IsProcessing) return;
+
+        _userSearchForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.GetJsonAsync<List<UserProfile>>($"admin/users/{_userSearchForm.Query}");
+
+        _users = response;
+
+        _userSearchForm.IsProcessing = false;
+    }
+
+    private async Task DeleteJobAsync(string jobId)
+        {
+            _jobs?.RemoveAll(x => x.Id == jobId);
+    
+            var client = Factory.CreateClient("api");
+            client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+    
+            var response = await client.DeleteAsync($"/admin/jobs/{jobId}", CancellationToken.Token);
+            if (response.StatusCode != HttpStatusCode.NoContent)
+            {
+                await MessageService.Error("Unable to delete the job, you should check logs for more information", "Failed to delete job", options =>
+                {
+                    options.CenterMessage = true;
+                    options.ShowMessageIcon = false;
+                });
+            }
+        }
+    
+        private async Task SubmitAddJobCallbackAsync()
+        {
+            if (!_addJobForm.IsValid || _addJobForm.IsProcessing) return;
+    
+            _addJobForm.IsProcessing = true;
+    
+            var client = Factory.CreateClient("api");
+            client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+    
+            var response = await client.PostJsonAsync<ErrorResponse>("/admin/jobs", _addJobForm, CancellationToken.Token);
+    
+            HideCreateJobsModal();
+    
+            if (response is not null)
+            {
+                await MessageService.Error("Ensure that the name of the role is not already in-use", "Failed to create job", options =>
+                {
+                    options.CenterMessage = true;
+                    options.ShowMessageIcon = false;
+                });
+            }
+            else
+            {
+                _roles = await client.GetJsonAsync<List<UserRole>>("admin/jobs", CancellationToken.Token);
+            }
+    
+            _addRoleForm.IsProcessing = false;
+        }
+    
+        private async Task SubmitEditJobCallbackAsync()
+        {
+            if (!_addJobForm.IsValid || _addJobForm.IsProcessing) return;
+    
+            _addJobForm.IsProcessing = true;
+    
+            var client = Factory.CreateClient("api");
+            client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+    
+            var response = await client.PutJsonAsync<bool>($"/admin/jobs/{_selectedJobId}", _addJobForm, CancellationToken.Token);
+            if (!response)
+            {
+                await MessageService.Error("Ensure that the name of the job is not already in-use", "Failed to create job", options =>
+                {
+                    options.CenterMessage = true;
+                    options.ShowMessageIcon = false;
+                });
+            }
+            else
+            {
+                _jobs = await client.GetJsonAsync<List<Job>>("admin/jobs", CancellationToken.Token);
+            }
+    
+            HideEditJobsModal();
+            ShowManageJobsModal();
+    
+            _addRoleForm.IsProcessing = false;
+        }
+
+    private void ShowEditRolesModal(UserRole role)
+    {
+        _selectedRoleId = role.Id;
+        _addRoleForm.Role = role.Name;
+
+        _manageRolesModalRef?.Hide();
+        _editRolesModalRef?.Show();
+    }
+
+    private void HideEditRolesModal()
+    {
+        _addRoleForm.Role = string.Empty;
+
+        _editRolesModalRef?.Hide();
+        _manageRolesModalRef?.Show();
+    }
+
+    private void ShowCreateRolesModal()
+    {
+        _manageRolesModalRef?.Hide();
+        _createRolesModalRef?.Show();
+    }
+
+    private void HideCreateRolesModal()
+    {
+        _createRolesModalRef?.Hide();
+        _manageRolesModalRef?.Show();
+    }
+
+    private void ShowManageRolesModal()
+    {
+        _manageRolesModalRef?.Show();
+    }
+
+    private void HideManageRolesModal()
+    {
+        _manageRolesModalRef?.Hide();
+    }
+
+    private void ShowManageJobsModal()
+    {
+        _manageJobsModalRef?.Show();
+    }
+
+    private void HideManageJobsModal()
+    {
+        _manageJobsModalRef?.Hide();
+    }
+
+    private void ShowEditJobsModal(Job job)
+    {
+        _selectedRoleId = job.Id;
+        _addJobForm.Name = job.Name;
+        _addJobForm.IsPublic = job.IsPublic;
+        _addJobForm.Salary = job.Salary.ToString(CultureInfo.InvariantCulture);
+
+        _manageJobsModalRef?.Hide();
+        _editJobsModalRef?.Show();
+    }
+
+    private void HideEditJobsModal()
+    {
+        _addJobForm.Name = string.Empty;
+        _addJobForm.IsPublic = true;
+        _addJobForm.Salary = "1000";
+
+        _editJobsModalRef?.Hide();
+        _manageJobsModalRef?.Show();
+    }
+
+    private void ShowCreateJobsModal()
+    {
+        _manageJobsModalRef?.Hide();
+        _createJobsModalRef?.Show();
+    }
+
+    private void HideCreateJobsModal()
+    {
+        _createJobsModalRef?.Hide();
+        _manageJobsModalRef?.Show();
+    }
+
+}

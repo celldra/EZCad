@@ -1,0 +1,49 @@
+{
+  "reviveRespawnTimer": 30,
+  "commands": {
+    "revive": {
+      "enabled": true
+    },
+    "respawn": {
+      "enabled": true,
+      "respawnCoords": {
+        "x": 1828.43,
+        "y": 3693.01,
+        "z": 34.3
+      }
+    },
+    "announce": {
+      "enabled": true,
+      "duration": 10
+    },
+    "pt": {
+      "enabled": true,
+      "enabledText": "~g~Enabled",
+      "disabledText": "~r~Disabled"
+    },
+    "pc": {
+      "enabled": true,
+      "cooldownText": "~r~{pcTime} ~w~minutes",
+      "disabledText": "~r~Inactive",
+      "activeText": "~g~Active",
+      "onHoldText": "~b~On hold"
+    },
+    "aop": {
+      "enabled": true,
+      "defaultAOP": "Sandy Shores"
+    },
+    "die": {
+      "enabled": true
+    },
+    "togglehud": {
+      "enabled": true
+    },
+    "postal": {
+      "enabled": true
+    }
+  },
+  "ragdoll": {
+    "enabled": true,
+    "key": "u"
+  }
+}

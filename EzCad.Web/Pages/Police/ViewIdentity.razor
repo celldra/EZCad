@@ -1,0 +1,306 @@
+﻿@page "/police/identity/{Id}"
+@inherits BasePage
+
+@attribute [Authorize(Roles = $"{RoleValues.Police},{RoleValues.Administrator}")]
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+@inject IMessageService MessageService
+
+@if (_identity is not null && _criminalRecords is not null && _vehicles is not null && Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - View identity</PageTitle>
+
+    <Heading Size="HeadingSize.Is1">@_identity.FirstName @_identity.LastName</Heading>
+    <Text>This identity was created at @_identity.DateCreated.</Text>
+    <Divider Margin="Margin.Is4.FromBottom"/>
+    @if (_user?.Roles.Contains(RoleValues.Administrator) == true)
+    {
+        <Buttons Margin="Margin.Is4.FromBottom">
+            <Button Clicked="ShowJobsModal" Color="Color.Secondary" Type="ButtonType.Button">
+                Edit job
+            </Button>
+        </Buttons>
+    }
+
+    <Row Margin="Margin.Is4.FromBottom">
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Vehicles</CardTitle>
+                    <CardText>
+                        @_vehicles.Count
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Criminal records</CardTitle>
+                    <CardText>
+                        @_criminalRecords.Count
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Balance</CardTitle>
+                    <CardText>
+                        @Configuration.FormatCurrency(_identity.Money)
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+    </Row>
+
+    <ListGroup Margin="Margin.Is4.FromBottom">
+        <ListGroupItem>
+            <b>Registered by: </b>@_identity.HostUser.UserName
+        </ListGroupItem>
+        <ListGroupItem>
+            <b>Date of Birth: </b>@_identity.DateOfBirth
+        </ListGroupItem>
+        <ListGroupItem>
+            <b>Sex: </b>@_identity.Sex
+        </ListGroupItem>
+        <ListGroupItem>
+            <b>Birth place: </b>@_identity.BirthPlace
+        </ListGroupItem>
+        <ListGroupItem>
+            <b>Primary: </b>
+            @if (_identity.IsPrimary)
+            {
+                <Badge Background="Background.Success" Margin="Margin.Is2.FromStart">
+                    <Tooltip Text="This is a primary identity">
+                        <Icon Name="IconName.Check"/>
+                    </Tooltip>
+                </Badge>
+            }
+            else
+            {
+                <Badge Background="Background.Danger" Margin="Margin.Is2.FromStart">
+                    <Tooltip Text="Not a primary identity">
+                        <Icon Name="IconName.Times"/>
+                    </Tooltip>
+                </Badge>
+            }
+        </ListGroupItem>
+    </ListGroup>
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Criminal records</Heading>
+
+    <Table Margin="Margin.Is4.FromBottom">
+        <TableHeader ThemeContrast="ThemeContrast.Dark">
+            <TableRow>
+                <TableHeaderCell>Offender</TableHeaderCell>
+                <TableHeaderCell>Action</TableHeaderCell>
+                <TableHeaderCell>Offence</TableHeaderCell>
+                <TableHeaderCell>Officer</TableHeaderCell>
+                <TableHeaderCell>Date</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            <Virtualize TItem="CriminalRecord" Items="_criminalRecords" Context="record">
+                <ItemContent>
+                    <TableRow>
+                        <TableRowCell>
+                            <a href="/police/identity/@record.Offender.Id">@record.Offender.FirstName @record.Offender.LastName</a>
+                        </TableRowCell>
+                        <TableRowCell>@record.Action</TableRowCell>
+                        <TableRowCell>@record.Offence</TableRowCell>
+                        <TableRowCell>
+                            <a href="/police/identity/@record.Officer.Id">@record.Officer.FirstName @record.Officer.LastName</a>
+                        </TableRowCell>
+                        <TableRowCell>@record.DateCreated</TableRowCell>
+                    </TableRow>
+                </ItemContent>
+            </Virtualize>
+        </TableBody>
+    </Table>
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Vehicles</Heading>
+
+    <Table Margin="Margin.Is4.FromBottom">
+        <TableHeader ThemeContrast="ThemeContrast.Dark">
+            <TableRow>
+                <TableHeaderCell>License plate</TableHeaderCell>
+                <TableHeaderCell>Manufacturer</TableHeaderCell>
+                <TableHeaderCell>Model</TableHeaderCell>
+                <TableHeaderCell>Registered to</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            <Virtualize TItem="Vehicle" Items="_vehicles" Context="vehicle">
+                <ItemContent>
+                    <TableRow>
+                        <TableRowCell>
+                            @vehicle.LicensePlate
+                            @if (vehicle.HostIdentity.IsPrimary)
+                            {
+                                <Badge Background="Background.Success" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Associated with active identity">
+                                        <Icon Name="IconName.Check"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                            @if (vehicle.IsStolen)
+                            {
+                                <Badge Background="Background.Danger" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Marked as stolen">
+                                        <Icon Name="IconName.DollarSign"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                        </TableRowCell>
+                        <TableRowCell>@vehicle.Manufacturer</TableRowCell>
+                        <TableRowCell>@vehicle.Model</TableRowCell>
+                        <TableRowCell>@vehicle.HostIdentity.LastName, @vehicle.HostIdentity.FirstName</TableRowCell>
+                    </TableRow>
+                </ItemContent>
+            </Virtualize>
+        </TableBody>
+    </Table>
+
+    @if (_user?.Roles.Contains(RoleValues.Administrator) == true)
+    {
+        <Modal @ref="_jobsModal">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Manage jobs</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <ListGroup Margin="Margin.Is4.FromBottom">
+                        <Virtualize TItem="Job" Items="_jobs" Context="job">
+                            <ItemContent>
+                                <ListGroupItem Flex="Flex.JustifyContent.Between.AlignItems.Center">
+                                    @job.Name
+
+                                    <Buttons>
+                                        @if (_identity.JobId == job.Id)
+                                        {
+                                            <Button Clicked="RemoveFromJobAsync" Type="ButtonType.Button" Color="Color.Danger">
+                                                Remove from job
+                                            </Button>
+                                        }
+                                        else if (_identity.JobId is null)
+                                        {
+                                            <Button Clicked="async () => await AddToJobAsync(job)" Type="ButtonType.Button" Color="Color.Secondary">
+                                                Add to job
+                                            </Button>
+                                        }
+                                        else
+                                        {
+                                            <Tooltip Text="They can only be in one job at a time">
+                                                <Button Disabled="true" Type="ButtonType.Button" Color="Color.Secondary">
+                                                    Add to job
+                                                </Button>
+                                            </Tooltip>
+                                        }
+                                    </Buttons>
+                                </ListGroupItem>
+                            </ItemContent>
+                        </Virtualize>
+                    </ListGroup>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideJobsModal">Dismiss</Button>
+                </ModalFooter>
+            </ModalContent>
+        </Modal>
+    }
+}
+
+@code {
+
+    [Parameter]
+    public string Id { get; set; }
+
+    private Identity? _identity;
+    private UserProfile? _user;
+    private List<Vehicle>? _vehicles;
+    private List<Job>? _jobs;
+    private List<CriminalRecord>? _criminalRecords;
+
+    private Modal? _jobsModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var userTask = client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        var targetIdentityTask = client.GetJsonAsync<Identity>($"identities/police/{Id}");
+        var criminalRecordTask = client.GetJsonAsync<List<CriminalRecord>>($"identities/police/{Id}/criminal-records");
+        var vehiclesTask = client.GetJsonAsync<List<Vehicle>>($"identities/police/{Id}/vehicles");
+        var jobsTask = client.GetJsonAsync<List<Job>>("jobs", CancellationToken.Token);
+
+        await Task.WhenAll(userTask, targetIdentityTask, criminalRecordTask, vehiclesTask, jobsTask);
+
+        _user = userTask.Result;
+        _identity = targetIdentityTask.Result;
+        _criminalRecords = criminalRecordTask.Result;
+        _vehicles = vehiclesTask.Result;
+        _jobs = jobsTask.Result;
+    }
+
+    private async Task RemoveFromJobAsync()
+    {
+        if (_identity?.JobId is null || _user?.Id is null) return;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.DeleteJsonAsync<bool>($"/admin/{_user.Id}/identities/{_identity.Id}/job", CancellationToken.Token);
+
+        if (!response)
+        {
+            await MessageService.Error("They could already be apart of the job, you should check the logs", "Failed to add to job", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            _identity.JobId = null;
+        }
+    }
+
+    private async Task AddToJobAsync(Job job)
+    {
+        if (_identity is null || _user?.Id is null) return;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.GetJsonAsync<bool>($"/admin/{_user.Id}/identities/{_identity.Id}/job/{job.Id}", CancellationToken.Token);
+
+        if (!response)
+        {
+            await MessageService.Error("They could already be apart of the job, you should check the logs", "Failed to add to job", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            _identity.JobId = job.Id;
+        }
+    }
+
+    private void ShowJobsModal()
+    {
+        _jobsModal?.Show();
+    }
+
+    private void HideJobsModal()
+    {
+        _jobsModal?.Hide();
+    }
+
+}

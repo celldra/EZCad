@@ -1,0 +1,194 @@
+﻿@page "/admin/config"
+@inherits BasePage
+@attribute [Authorize(Roles = RoleValues.Administrator)]
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+@inject IMessageService MessageService
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Edit configuration</PageTitle>
+}
+
+@if (_user is not null)
+{
+    <Heading Size="HeadingSize.Is1">Edit EZCad configuration</Heading>
+    <Text>Change the CAD logo, server name, connect URL, etc.</Text>
+    <Divider Margin="Margin.Is4.FromBottom"/>
+    <Button Margin="Margin.Is4.FromBottom" Clicked="SubmitCallbackAsync" Color="Color.Primary" Type="ButtonType.Button" Disabled="@(_configurationForm.IsProcessing || !_configurationForm.IsValid)" Loading="_configurationForm.IsProcessing">
+        Save changes
+    </Button>
+
+    <Validations Mode="ValidationMode.Auto" Model="@_configurationForm" StatusChanged="ValidationStateChanged">
+        <DataAnnotationsValidator/>
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>Server name</FieldLabel>
+                <TextEdit Disabled="_configurationForm.IsProcessing" Role="TextRole.Text" @bind-Text="_configurationForm.ServerName">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>The name of your server, this will appear everywhere EZCad is referenced to public users</FieldHelp>
+            </Field>
+        </Validation>
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>CitizenFX connect URL</FieldLabel>
+                <TextEdit Disabled="_configurationForm.IsProcessing" Role="TextRole.Text" @bind-Text="_configurationForm.ServerConnectUrl">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>The link CitizenFX provides to easily connect to your FiveM/RedM server. <b>You can usually get one beside the connect button in the server listing</b></FieldHelp>
+            </Field>
+        </Validation>
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>Currency</FieldLabel>
+                <TextEdit Disabled="_configurationForm.IsProcessing" Role="TextRole.Text" @bind-Text="_configurationForm.Currency">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>The currency unit your server is using, this is <b>not</b> the full abbreviation or name, this is simply the <b>symbol</b>. By default, this is '$' (USD)</FieldHelp>
+            </Field>
+        </Validation>
+        <Field Margin="Margin.Is3.FromBottom">
+            <FieldLabel>Accent color</FieldLabel>
+            <ColorPicker Disabled="_configurationForm.IsProcessing" Color="@_configurationForm.HexColor" ColorChanged="ColorChanged"/>
+            <FieldHelp>The accent color will show where any primary color is used, this includes components like buttons, fields or navigation links</FieldHelp>
+        </Field>
+        <Field>
+            <FieldLabel>Logo</FieldLabel>
+            <FileEdit Disabled="_configurationForm.IsProcessing" Filter="image/*" Changed="FileChangedAsync"/>
+            <FieldHelp>We recommend a 50x50px image that is no larger than 15MB (megabytes) in size</FieldHelp>
+        </Field>
+    </Validations>
+}
+
+@code {
+
+    private UserProfile? _user;
+
+    private readonly ConfigurationForm _configurationForm = new();
+    private bool _formSet;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var userTask = client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        var usersTask = client.GetJsonAsync<List<UserProfile>>("admin/users", CancellationToken.Token);
+        var loginTask = client.GetJsonAsync<List<Login>>("admin/analytics/logins", CancellationToken.Token);
+
+        await Task.WhenAll(userTask, usersTask, loginTask);
+
+        _user = userTask.Result;
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Configuration is null || _formSet) return base.OnAfterRenderAsync(firstRender);
+
+        _configurationForm.ServerName = Configuration.ServerName;
+        _configurationForm.HexColor = Configuration.PrimaryHexColor;
+        _configurationForm.ServerConnectUrl = Configuration.ConnectUrl;
+        _configurationForm.Currency = Configuration.Currency;
+        _configurationForm.IsValid = true;
+
+        _formSet = true;
+
+        return base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_configurationForm.IsValid || _configurationForm.IsProcessing) return;
+
+        _configurationForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PutJsonAsync<bool>("/config", _configurationForm, CancellationToken.Token);
+        if (response)
+        {
+            await MessageService.Success("Your changes have been saved", "Updated configuration", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            await MessageService.Error("Could not update the configuration, check the logs for more information", "Failed to save configuration", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+
+        _configurationForm.IsProcessing = false;
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _configurationForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private void ColorChanged(string hexColor)
+    {
+        _configurationForm.HexColor = hexColor;
+    }
+
+    private async Task FileChangedAsync(FileChangedEventArgs obj)
+    {
+        try
+        {
+            if (obj.Files.Length is > 1 or 0) return;
+
+            const int maxFileSize = 1024 * 1024 * 15;
+
+            var file = obj.Files.FirstOrDefault();
+            if (file is null) return;
+
+            _configurationForm.IsProcessing = true;
+
+            var client = Factory.CreateClient("api");
+            client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+            using var content = new MultipartFormDataContent();
+            var fileContent = new StreamContent(file.OpenReadStream(maxFileSize));
+
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(file.Type);
+
+            content.Add(fileContent, "\"file\"", "logo.png");
+
+            var response = await client.PutAsync("/config/logo", content, CancellationToken.Token);
+            if (response.StatusCode != HttpStatusCode.NoContent)
+            {
+                await MessageService.Error("Make sure that the file is no larger than 15 MB (megabytes) in size and is a valid image file", "Failed to upload file", options =>
+                {
+                    options.CenterMessage = true;
+                    options.ShowMessageIcon = false;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error(ex.Message, "Failed to process uploaded file", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        finally
+        {
+            _configurationForm.IsProcessing = false;
+        }
+    }
+
+}

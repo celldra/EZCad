@@ -1,0 +1,9 @@
+﻿<Card Padding="Padding.Is4" Margin="Margin.Is3.FromBottom">
+    <Icon Name="IconName.EyeSlash" TextAlignment="TextAlignment.Center" Margin="Margin.Is2.FromBottom"  IconSize="IconSize.x3"/>
+    <Heading Size="HeadingSize.Is5" TextAlignment="TextAlignment.Center">@Message</Heading>
+</Card>
+
+@code {
+    [Parameter]
+    public string? Message { get; set; }
+}

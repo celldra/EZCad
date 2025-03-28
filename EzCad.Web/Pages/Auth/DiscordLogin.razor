@@ -1,0 +1,48 @@
+﻿@page "/login/discord"
+
+@inherits BasePage
+
+@inject ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IMessageService MessageService
+@inject IHttpClientFactory Factory
+
+<Heading Size="HeadingSize.Is1">One moment...</Heading>
+<Text>We're checking if your Discord login is valid, this will only take a moment</Text>
+
+@code {
+
+    [Parameter]
+    public string? Code { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("code", out var code))
+        {
+            Code = code;
+        }
+
+        var client = Factory.CreateClient("api");
+
+        var response = await client.PutJsonAsync<LoginResponse>($"/auth/external/discord/{code}", null, CancellationToken.Token);
+
+        if (response is {Success: true })
+        {
+            await LocalStorage.SetItemAsStringAsync("auth_token", response.Token, CancellationToken.Token);
+            ((JwtAuthStateProvider) AuthenticationStateProvider).NotifyUserAuthentication(response.Token);
+
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            await MessageService.Error(response?.Message, "Failed to sign you in", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+    }
+
+}

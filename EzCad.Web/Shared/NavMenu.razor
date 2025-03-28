@@ -1,0 +1,110 @@
+﻿@inject IHttpClientFactory Factory
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService LocalStorage
+@inject IBackendConfigurationService BackendConfigurationService
+@inherits EzCad.Web.Pages.BasePage
+
+<header>
+    <div class="px-3 py-2 bg-dark text-white">
+        <div class="container">
+            <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
+                <a href="/" class="d-flex align-items-center my-2 my-lg-0 me-lg-auto text-white text-decoration-none">
+                    <img src="@(BackendConfigurationService.Configuration.ApiBaseUrl + "config/logo")" width="50" height="50" alt=""/>
+                </a>
+
+                <ul class="nav col-12 col-lg-auto my-2 justify-content-center my-md-0 text-small">
+                    <li>
+                        <NavLink class="nav-link" ActiveClass="text-primary" href="/" Match="NavLinkMatch.All">
+                            <Icon IconSize="IconSize.Large" Class="d-block mx-auto mb-1 text-center" Name="IconName.Home"/>
+                            <Text>Home</Text>
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink class="nav-link" ActiveClass="text-primary" href="/identities">
+                            <Icon IconSize="IconSize.Large" Class="d-block mx-auto mb-1 text-center" Name="IconName.IdCard"/>
+                            <Text>Identities</Text>
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink class="nav-link" ActiveClass="text-primary" href="/vehicles">
+                            <Icon IconSize="IconSize.Large" Class="d-block mx-auto mb-1 text-center" Name="IconName.Car"/>
+                            <Text>Vehicles</Text>
+                        </NavLink>
+                    </li>
+                    <AuthorizeView Roles="@RoleValues.Police">
+                        <Authorized>
+                            <NavLink class="nav-link" ActiveClass="text-primary" href="/police">
+                                <Icon IconSize="IconSize.Large" Class="d-block mx-auto mb-1 text-center" Name="IconName.Star"/>
+                                <Text>Police</Text>
+                            </NavLink>
+                        </Authorized>
+                    </AuthorizeView>
+                    <AuthorizeView Roles="@RoleValues.Administrator">
+                        <Authorized>
+                            <NavLink class="nav-link" ActiveClass="text-primary" href="/admin">
+                                <Icon IconSize="IconSize.Large" Class="d-block mx-auto mb-1 text-center" Name="IconName.Wrench"/>
+                                <Text>Administrative</Text>
+                            </NavLink>
+                        </Authorized>
+                    </AuthorizeView>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="px-3 py-2 border-bottom mb-3">
+        <div class="container d-flex flex-wrap justify-content-end">
+            <div class="text-end">
+                <Buttons>
+                    <AuthorizeView>
+                        <NotAuthorized>
+                            <Button Type="ButtonType.Link" To="/login" Color="Color.Light" TextColor="TextColor.Dark">
+                                Login
+                            </Button>
+                            <Button Type="ButtonType.Link" To="/register" Color="Color.Primary">
+                                Sign up
+                            </Button>
+                        </NotAuthorized>
+                        <Authorized>
+                            <Dropdown>
+                                <DropdownToggle Color="Color.Light" TextColor="TextColor.Dark">
+                                    @context.User.Identity?.Name
+                                </DropdownToggle>
+                                <DropdownMenu>
+                                    <DropdownItem>Edit account</DropdownItem>
+                                    <DropdownItem Clicked="LinkToExternalServices">External services</DropdownItem>
+                                    <DropdownDivider/>
+                                    <DropdownItem Clicked="LogoutCallbackAsync">Logout</DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </Authorized>
+                    </AuthorizeView>
+                    <Button Type="ButtonType.Link" To="@_configuration?.ConnectUrl" Color="Color.Primary">
+                        Connect
+                    </Button>
+                </Buttons>
+            </div>
+        </div>
+    </div>
+</header>
+
+@code {
+    private Configuration? _configuration;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var client = Factory.CreateClient("api");
+        _configuration = await client.GetJsonAsync<Configuration>("config", CancellationToken.Token);
+    }
+
+    private async Task LogoutCallbackAsync()
+    {
+        await LocalStorage.RemoveItemAsync("auth_token", CancellationToken.Token);
+        NavigationManager.NavigateTo("/", true);
+    }
+
+    private void LinkToExternalServices()
+    {
+        NavigationManager.NavigateTo("/user/external");
+    }
+
+}

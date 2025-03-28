@@ -1,0 +1,182 @@
+﻿@page "/identities/{Id}"
+@inherits BasePage
+@using EzCad.Database.Models
+@implements IDisposable
+
+@attribute [Authorize]
+
+@inject IHttpClientFactory Factory
+@inject IMessageService MessageService
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService LocalStorage
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Edit identity</PageTitle>
+}
+
+
+@if (_identity is not null)
+{
+    <Heading Size="HeadingSize.Is1">Edit identity</Heading>
+    <Text>You're currently editing the identity: <b>@_identity.LastName</b>, @_identity.FirstName</Text>
+    <Divider/>
+    <Button Margin="Margin.Is4.FromBottom" Clicked="SubmitCallbackAsync" Color="Color.Primary" Type="ButtonType.Button" Disabled="_form.IsProcessing" Loading="_form.IsProcessing">
+        Save changes
+    </Button>
+
+    <Validations Mode="ValidationMode.Auto" Model="@_form" StatusChanged="ValidationStateChanged">
+        <DataAnnotationsValidator/>
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>First name</FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.FirstName">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>The first name or forename of your character</FieldHelp>
+            </Field>
+        </Validation>
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>Last name</FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.LastName">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>The last name or surname of your character</FieldHelp>
+            </Field>
+        </Validation>
+
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>Place of birth</FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.BirthPlace">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>This is the city, country or area you were born at.</FieldHelp>
+            </Field>
+        </Validation>
+
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>Date of birth</FieldLabel>
+                <DatePicker TValue="DateTime" Disabled="_form.IsProcessing" @bind-Date="_form.DateOfBirth"/>
+                <FieldHelp>Ensure this is the date of birth for your character, not your real date of birth.</FieldHelp>
+            </Field>
+        </Validation>
+
+        <Field Class="mb-3">
+            <FieldLabel>Sex</FieldLabel>
+            <Select TValue="Sex" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.Sex">
+                @foreach (var state in Enum.GetValues<Sex>())
+                {
+                    <SelectItem Value="state">
+                        @state.ToString()
+                    </SelectItem>
+                }
+            </Select>
+        </Field>
+
+        <Field Class="mb-3">
+            <FieldLabel>Driving license</FieldLabel>
+            <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.DrivingLicense">
+                @foreach (var state in Enum.GetValues<LicenseState>())
+                {
+                    <SelectItem Value="state">
+                        @state.ToString()
+                    </SelectItem>
+                }
+            </Select>
+        </Field>
+
+        <Field Class="mb-3">
+            <FieldLabel>Weapons license</FieldLabel>
+            <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.WeaponsLicense">
+                @foreach (var state in Enum.GetValues<LicenseState>())
+                {
+                    <SelectItem Value="state">
+                        @state.ToString()
+                    </SelectItem>
+                }
+            </Select>
+        </Field>
+
+        <Field Class="mb-3">
+            <FieldLabel>Hunting license</FieldLabel>
+            <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.HuntingLicense">
+                @foreach (var state in Enum.GetValues<LicenseState>())
+                {
+                    <SelectItem Value="state">
+                        @state.ToString()
+                    </SelectItem>
+                }
+            </Select>
+        </Field>
+    </Validations>
+}
+
+
+@code {
+
+    [Parameter]
+    [Required]
+    public string Id { get; set; }
+
+    private Identity? _identity;
+    private readonly IdentityForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        _identity = await client.GetFromJsonAsync<Identity>($"identities/{Id}", CancellationToken.Token);
+
+        if (_identity is null) return;
+        _form.BirthPlace = _identity.BirthPlace;
+        _form.FirstName = _identity.FirstName;
+        _form.LastName = _identity.LastName;
+        _form.DateOfBirth = _identity.DateOfBirth;
+        _form.Sex = _identity.Sex;
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _form.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_form.IsValid || _form.IsProcessing) return;
+
+        _form.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PutJsonAsync<bool>($"/identities/{_identity.Id}", _form, CancellationToken.Token);
+
+        if (!response)
+        {
+            await MessageService.Error("The identity may not exist", "Failed to update identity", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/identities");
+        }
+
+        _form.IsProcessing = false;
+    }
+
+
+
+}

@@ -1,0 +1,110 @@
+﻿@page "/register"
+@inherits BasePage
+
+@inject IHttpClientFactory Factory
+@inject IMessageService MessageService
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Register</PageTitle>
+}
+
+<Heading Size="HeadingSize.Is1">Register</Heading>
+<Text>If you already have an account <Link To="/login">click here</Link>. If you need to reset your password, <Link To="/cad/forgot-password">click here</Link>.</Text>
+<Divider Margin="Margin.Is4.FromBottom"/>
+
+<Validations Mode="ValidationMode.Auto" Model="@_form" StatusChanged="ValidationStateChanged">
+    <DataAnnotationsValidator/>
+    <Validation>
+        <Field Class="w-25 mb-3">
+            <FieldLabel>
+                Username
+                <label class="text-danger">*</label>
+            </FieldLabel>
+            <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.UserName">
+                <Feedback>
+                    <ValidationError/>
+                </Feedback>
+            </TextEdit>
+            <FieldHelp>No longer than 50 characters and less than 2 characters</FieldHelp>
+        </Field>
+    </Validation>
+
+    <Validation>
+        <Field Class="w-25 mb-3">
+            <FieldLabel>
+                Email
+                <label class="text-danger">*</label>
+            </FieldLabel>
+            <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Email" @bind-Text="_form.Email">
+                <Feedback>
+                    <ValidationSuccess/>
+                </Feedback>
+            </TextEdit>
+            <FieldHelp>Make sure this is valid, we'll verify this later</FieldHelp>
+        </Field>
+    </Validation>
+
+    <Validation>
+        <Field Class="w-25 mb-3">
+            <FieldLabel>
+                Password
+                <label class="text-danger">*</label>
+            </FieldLabel>
+            <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Password" @bind-Text="_form.Password">
+                <Feedback>
+                    <ValidationError/>
+                </Feedback>
+            </TextEdit>
+            <FieldHelp>Be sure to follow our password requirements, one uppercase character, one lowercase character, one number, longer than 8 characters and no longer than 256 characters</FieldHelp>
+        </Field>
+    </Validation>
+
+    <Button Clicked="SubmitCallbackAsync" Type="ButtonType.Submit" Loading="_form.IsProcessing" Color="Color.Primary" Disabled="@(_form.IsProcessing || !_isValid)">
+        Register
+    </Button>
+</Validations>
+
+@code {
+
+    private readonly RegisterForm _form = new();
+    private bool _isValid;
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_isValid || _form.IsProcessing) return;
+
+        _form.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+
+        var response = await client.PostJsonAsync<CreatedResponse<User>>("/auth/register", _form, CancellationToken.Token);
+
+        if (response?.Entity is not null)
+        {
+            await MessageService.Info("Check your email for a verification message", "Your account has been created", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            await MessageService.Error(response?.Message ?? "Try another username or email address, they may already be in use", "Your account could not be created", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+
+        _form.IsProcessing = false;
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _isValid = args.Status == ValidationStatus.Success;
+    }
+
+
+
+}

@@ -1,0 +1,174 @@
+﻿@page "/vehicles/{Id}"
+@inherits BasePage
+
+@attribute [Authorize]
+
+@inject IHttpClientFactory Factory
+@inject IMessageService MessageService
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService LocalStorage
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Edit vehicle</PageTitle>
+}
+
+
+@if (_vehicle is not null && _identities is not null)
+{
+    <Heading Size="HeadingSize.Is1">Edit vehicle</Heading>
+    <Text>You're currently editing the vehicle: <b>@_vehicle.Model</b>, @_vehicle.LicensePlate.ToUpper()</Text>
+    <Divider/>
+
+    <Button Clicked="SubmitCallbackAsync" Margin="Margin.Is4.FromBottom" Color="Color.Primary" Type="ButtonType.Button" Disabled="_form.IsProcessing" Loading="_form.IsProcessing">
+        Save changes
+    </Button>
+
+    <Validations Mode="ValidationMode.Auto" Model="@_form" StatusChanged="ValidationStateChanged">
+        <DataAnnotationsValidator/>
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>Model</FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.Model">
+                    <Feedback>
+                        <ValidationSuccess/>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+            </Field>
+        </Validation>
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>Manufacturer</FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.Manufacturer">
+                    <Feedback>
+                        <ValidationSuccess/>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+            </Field>
+        </Validation>
+
+        <Validation>
+            <Field Class="mb-3">
+                <FieldLabel>License plate</FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.LicensePlate">
+                    <Feedback>
+                        <ValidationSuccess/>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+            </Field>
+        </Validation>
+
+        <Field Class="mb-3">
+            <Switch TValue="bool" Disabled="_form.IsProcessing" @bind-Checked="_form.IsStolen">Stolen?</Switch>
+        </Field>
+
+        <Field Class="mb-3">
+            <FieldLabel>Identity</FieldLabel>
+            <Select TValue="string" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.IdentityId">
+                @foreach (var identity in _identities)
+                {
+                    <SelectItem Value="identity.Id">
+                        <b>@identity.LastName</b>, @identity.FirstName
+                    </SelectItem>
+                }
+            </Select>
+        </Field>
+
+        <Field Class="mb-3">
+            <FieldLabel>MOT state</FieldLabel>
+            <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.MotState">
+                @foreach (var state in Enum.GetValues<LicenseState>())
+                {
+                    <SelectItem Value="state">
+                        @state.ToString()
+                    </SelectItem>
+                }
+            </Select>
+        </Field>
+
+        <Field Class="mb-3">
+            <FieldLabel>Insurance state</FieldLabel>
+            <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.InsuranceState">
+                @foreach (var state in Enum.GetValues<LicenseState>())
+                {
+                    <SelectItem Value="state">
+                        @state.ToString()
+                    </SelectItem>
+                }
+            </Select>
+        </Field>
+    </Validations>
+}
+
+
+@code {
+
+    [Parameter]
+    [Required]
+    public string Id { get; set; }
+
+    private Vehicle? _vehicle;
+    private List<Identity>? _identities;
+    private readonly VehicleForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var identityTask = client.GetJsonAsync<List<Identity>>("identities", CancellationToken.Token);
+        var vehicleTask = client.GetJsonAsync<Vehicle>($"vehicles/{Id}", CancellationToken.Token);
+
+        await Task.WhenAll(identityTask, vehicleTask);
+
+        _vehicle = vehicleTask.Result;
+        _identities = identityTask.Result;
+
+        if (_vehicle is null) return;
+        _form.Model = _vehicle.Model;
+        _form.Manufacturer = _vehicle.Manufacturer;
+        _form.IdentityId = _vehicle.HostIdentity.Id;
+        _form.IsStolen = _vehicle.IsStolen;
+        _form.LicensePlate = _vehicle.LicensePlate;
+        _form.MotState = _vehicle.MotState;
+        _form.InsuranceState = _vehicle.InsuranceState;
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _form.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_form.IsValid || _form.IsProcessing) return;
+
+        _form.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PutJsonAsync<bool>($"/vehicles/{_vehicle?.Id}", _form, CancellationToken.Token);
+
+        if (!response)
+        {
+            await MessageService.Error("The vehicle may not exist", "Failed to update vehicle", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/vehicles");
+        }
+
+        _form.IsProcessing = false;
+    }
+
+
+
+}

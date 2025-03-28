@@ -1,0 +1,71 @@
+﻿@page "/"
+@inherits BasePage
+
+@attribute [Authorize]
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Home</PageTitle>
+}
+
+@if (_user is not null)
+{
+    <LinkAlert User="_user"/>
+
+    <Heading Size="HeadingSize.Is1">@Configuration?.ServerName CAD</Heading>
+    <Text> Welcome to the CAD, here you can manage your vehicles and identities.</Text>
+    <Divider Margin="Margin.Is4.FromBottom"/>
+
+    @if (_user.IsLinked)
+    {
+        <Alert Color="Color.Success" Visible>
+            <b>Thanks for linking your account,</b> have fun and enjoy playing on @Configuration?.ServerName!
+        </Alert>
+    }
+
+    @if (_user.DiscordId is null)
+    {
+        <Card>
+            <CardHeader Class="p-3">
+                Link your Discord
+            </CardHeader>
+            <CardBody>
+                <CardText>
+                    <Text>
+                        Link your Discord account and never have to worry about your CAD username and password again!
+                    </Text>
+                </CardText>
+                <Buttons Class="mt-3">
+                    <Button Type="ButtonType.Link" To="@Configuration?.DiscordRedirectUrl" Color="Color.Primary">Link</Button>
+                </Buttons>
+            </CardBody>
+        </Card>
+    }
+}
+
+@code {
+
+    private UserProfile? _user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = Factory.CreateClient("api");
+            client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+            _user = await client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        }
+        catch (Exception)
+        {
+            NavigationManager.NavigateTo("/login");
+        }
+    }
+
+
+
+}

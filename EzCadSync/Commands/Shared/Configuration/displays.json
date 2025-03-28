@@ -1,0 +1,58 @@
+[
+  {
+    "text": "~y~Discord: ~w~discord.gg/TFCQE8d",
+    "x": 0.01,
+    "y": 0.01,
+    "scale": 0.60,
+    "allignment": 1,
+    "enabled": true
+  },
+  {
+    "text": "~y~ID: ~w~{playerId}",
+    "x": 0.15,
+    "y": 0.85,
+    "scale": 0.43,
+    "allignment": 1,
+    "enabled": true
+  },
+  {
+    "text": "~y~AOP: ~w~{aop}",
+    "x": 0.15,
+    "y": 0.87,
+    "scale": 0.43,
+    "allignment": 1,
+    "enabled": true
+  },
+  {
+    "text": "~y~Peacetime: {ptStatus}",
+    "x": 0.15,
+    "y": 0.89,
+    "scale": 0.43,
+    "allignment": 1,
+    "enabled": true
+  },
+  {
+    "text": "~y~Priority Cooldown: ~w~{pcStatus}",
+    "x": 0.15,
+    "y": 0.91,
+    "scale": 0.43,
+    "allignment": 1,
+    "enabled": true
+  },
+  {
+    "text": "~y~{heading} ~w~| ~y~{street}~w~ {crossStreetSlash} ~y~{crossStreet}",
+    "x": 0.15,
+    "y": 0.9355,
+    "scale": 0.6,
+    "allignment": 1,
+    "enabled": true
+  },
+  {
+    "text": "~w~{zone}, {postalCode} ~y~(~g~{postalDistance}m~y~)",
+    "x": 0.15,
+    "y": 0.965,
+    "scale": 0.50,
+    "allignment": 1,
+    "enabled": true
+  }
+]

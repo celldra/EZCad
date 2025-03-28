@@ -1,0 +1,32 @@
+{
+  "redisConfiguration": {
+    "isEnabled": false,
+    "host": "127.0.0.1",
+    "port": 5002,
+    "name": "EZCad"
+  },
+  "databaseConfiguration": {
+    "isEnabled": true,
+    "host": "127.0.0.1",
+    "port": 5432,
+    "username": "postgres",
+    "password": "password",
+    "name": "EzCad"
+  },
+  "domains": [
+    "*"
+  ],
+  "discordConfiguration": {
+    "isEnabled": true,
+    "autoJoinServer": true,
+    "clientId": "abc",
+    "serverId": "abc",
+    "botToken": "abc",
+    "secret": "abc",
+    "redirectDomain": "http://localhost:5288"
+  },
+  "apiBaseUrl": "http://localhost:5007/",
+  "passwordSecret": "RKzqS35TTaEcHDEjKsM9fQfHHvjrfkVetY4Gx5ZZkCQmBnkEdWbF7MfD7W4zsQYaasRLWfnS4uCjXF9xp7WXnzKjAAwguQvjaUU7bXEWvDdhQS2peYAhD7grXTuwzKqFfqX52ASbAvMSRFzpp2rZsmTXxdZYDxJRAahu8prrFHW5zphG2ULeHQEr2pf7LDjyEQy2bketDNDxxz4AwmJrbhCHEHLVNYsK7UfQQZamgnpPSHL8Y6HGJBgGpDerh6CS7aZvgU7emk7Um59BYjqpK963N7y6h2h8Cp3S77Bxptg6huAbTBZexNLLCtyWKaApxWzKBSqqRQCkFbfaPdD58GjEHcx2NyC96pZJJwVqm8d5LMjpyt2Dt4GxV7mPn2v2KZ5JHwcE8k68x8CLF462pHgFFwzZuYDfdNRUgM7x7gK7frt5RqX8y3Yh7xLB8Hks3HWJ74pggSApwQwTg6Ar2Mcrkg5tGupm6mveynu2hRrSVSEQ3qnnzYt5a9mFRNN4b46EH8k7urAMYre5CzUwqbD5ALzV5TNMsPV3fpAESsp3d6YrGuAgLkeLT2L7YqNSex4bry5urFQe4zCQJTVBg9cds5WReZQMeZc2j2uSw9Asssh7XhrSjtEF2uRaJ9PuUkBKL9tUvALL9jdG3g4vdxeEHHmQDLJkh5XJ9weTZAzgYt7jVfWHWcgZLxtMP84NZHNsajs5tpNzK2LfjPCq7m2whnjsXeHCzxjVj9rSYvh69Cqv4zYz2WpK3XnymNHMEL2HPRJJr9YqvUZHJxvs7Mrk48eYHFVQyjvfTuSPFWBztqJZgGGrgXdrByUCVK68n3pwvuzeYKVTmyFca8w55QwkBkmzx3B4y8GDNMxfEZEbuTNHKDPyFczRumkP4qj3gVncNE7m3cjST7pmPLaKnDEf88vseaVGvZ75THy47y3GTqqyZvz6h3dfuCRLJeX2337SBMHz4uwkddk9Kc3mWS3tNdKFfnLMQPyUK8hNSS2eLnD5PtNhWNAnzGXs95Nx",
+  "jwtSigningKey": "mLfTVD6czKu4ABzddqig3tR3d0GwdX0bHEfjGgbTyV2EdhhmIcpAosn4mBLSafHdFnuMAffbj44F0EoSzcACBjIC4j2DZm7c6vI6LIjwP5yxuMuCfL56CC0FF5N7zk9t",
+  "jwtIssuer": "EZCad"
+}

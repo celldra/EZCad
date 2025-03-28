@@ -1,0 +1,7 @@
+{
+  "domains": [
+    "*"
+  ],
+  "apiBaseUrl": "http://localhost:5007/",
+  "jwtIssuer": "EZCad"
+}

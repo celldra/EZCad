@@ -1,0 +1,45 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26124.0
+MinimumVisualStudioVersion = 15.0.26124.0
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EzCadSync.Client", "Cad\Client\EzCadSync.Client.csproj", "{3F639C22-F015-483E-B3EC-FCE123DC2953}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EzCadSync.Server", "Cad\Server\EzCadSync.Server.csproj", "{67B23B64-2D0B-43FF-9E8F-9584FDE7DC52}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EzCadSync.Api", "Cad\API\EzCadSync.Api.csproj", "{06ACEC13-2F21-4E2D-9CDE-6C984DEE9406}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GallagherCommands.Client", "Commands\Client\GallagherCommands.Client.csproj", "{B731DC85-17E1-4D93-B951-FA02346D3AD5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GallagherCommands.Server", "Commands\Server\GallagherCommands.Server.csproj", "{8018A2B9-DF81-41CF-AB09-1EEA22E6465B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3F639C22-F015-483E-B3EC-FCE123DC2953}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3F639C22-F015-483E-B3EC-FCE123DC2953}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3F639C22-F015-483E-B3EC-FCE123DC2953}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3F639C22-F015-483E-B3EC-FCE123DC2953}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67B23B64-2D0B-43FF-9E8F-9584FDE7DC52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67B23B64-2D0B-43FF-9E8F-9584FDE7DC52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67B23B64-2D0B-43FF-9E8F-9584FDE7DC52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67B23B64-2D0B-43FF-9E8F-9584FDE7DC52}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06ACEC13-2F21-4E2D-9CDE-6C984DEE9406}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06ACEC13-2F21-4E2D-9CDE-6C984DEE9406}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06ACEC13-2F21-4E2D-9CDE-6C984DEE9406}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06ACEC13-2F21-4E2D-9CDE-6C984DEE9406}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B731DC85-17E1-4D93-B951-FA02346D3AD5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B731DC85-17E1-4D93-B951-FA02346D3AD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B731DC85-17E1-4D93-B951-FA02346D3AD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B731DC85-17E1-4D93-B951-FA02346D3AD5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8018A2B9-DF81-41CF-AB09-1EEA22E6465B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8018A2B9-DF81-41CF-AB09-1EEA22E6465B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8018A2B9-DF81-41CF-AB09-1EEA22E6465B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8018A2B9-DF81-41CF-AB09-1EEA22E6465B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

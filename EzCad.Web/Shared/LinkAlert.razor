@@ -1,0 +1,23 @@
+﻿@if (User is {IsLinked: false})
+{
+    <Alert Color="Color.Warning" Visible>
+        <Heading Size="HeadingSize.Is4">
+            You need to link your FiveM account!
+        </Heading>
+        <Paragraph>
+            In-order for the CAD to be effective, you <b>need to link your CAD account with your FiveM account!</b>
+            <br/>
+            You can do this by running the following command in-game:
+        </Paragraph>
+        <Code>
+            /link-cad @User?.Id
+        </Code>
+    </Alert>
+}
+
+@code {
+
+    [Parameter]
+    public UserProfile? User { get; set; }
+
+}

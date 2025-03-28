@@ -1,0 +1,221 @@
+﻿@page "/identities/{Id}/banking"
+@inherits BasePage
+
+@attribute [Authorize]
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+@inject ILogger<Banking> Logger
+
+<LinkAlert User="_user"/>
+
+<Heading Size="HeadingSize.Is1">Your account details</Heading>
+<Text>View your balance, previous balances, transaction history and other activities.</Text>
+<Divider Margin="Margin.Is4.FromBottom"/>
+
+@if (_identity is not null && Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Banking</PageTitle>
+
+    <Row Margin="Margin.Is4.FromBottom">
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Your balance</CardTitle>
+                    <CardText>
+                        @Configuration.FormatCurrency(_identity.Money)
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Spent today</CardTitle>
+                    <CardText>
+                        @Configuration.FormatCurrency(_spentToday)
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Gained today</CardTitle>
+                    <CardText>
+                        @Configuration.FormatCurrency(_gainedToday)
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+    </Row>
+}
+
+<LineChart Margin="Margin.Is4.FromBottom" TItem="int" @ref="_chartRef"/>
+
+<Heading Size="HeadingSize.Is1">Transactions</Heading>
+<Text>View every transaction that you've performed under the selected identity.</Text>
+<Divider Margin="Margin.Is4.FromBottom"/>
+
+<!-- Transactions -->
+@if (_transactions?.Any() == true)
+{
+    <Virtualize TItem="Transaction" Items="_transactions" Context="transaction">
+        <ItemContent>
+            <Card Class="mb-3">
+                @if (transaction.Increase)
+                {
+                    <CardHeader Class="p-3" TextColor="TextColor.Success">
+                        <Icon Name="IconName.CreditCard" TextColor="TextColor.Black50" Class="me-1" IconSize="IconSize.Large"/>
+                        +@Configuration.FormatCurrency(transaction.Amount)
+                    </CardHeader>
+                }
+                else
+                {
+                    <CardHeader Class="p-3" TextColor="TextColor.Danger">
+                        <Icon Name="IconName.CreditCard" TextColor="TextColor.Black50" Class="me-1" IconSize="IconSize.Large"/>
+                        -@Configuration.FormatCurrency(transaction.Amount)
+                    </CardHeader>
+                }
+                <CardBody>
+                    <CardTitle Size="5">
+                    </CardTitle>
+                    <CardText>
+                        <Text>
+                            <b>Date: </b>@transaction.DateCreated
+                        </Text>
+                        <br/>
+                        <Text>
+                            <b>Description: </b>@transaction.Description
+                        </Text>
+                        <br/>
+                        <Text>
+                            @if (transaction.ToIdentity is not null)
+                            {
+                                <b>To: </b>
+                                @(transaction.ToIdentity.LastName + ", " + transaction.ToIdentity.FirstName)
+                            }
+                            else
+                            {
+                                <b>To: </b>
+                                @("HM Government")
+                            }
+                        </Text>
+                        <br/>
+                        <Text>
+                            @if (transaction.FromIdentity is not null)
+                            {
+                                <b>From: </b>
+                                @(transaction.FromIdentity.LastName + ", " + transaction.FromIdentity.FirstName)
+                            }
+                            else
+                            {
+                                <b>From: </b>
+                                @("HM Government")
+                            }
+                        </Text>
+                    </CardText>
+                </CardBody>
+            </Card>
+        </ItemContent>
+        <Placeholder>
+            Loading...
+        </Placeholder>
+    </Virtualize>
+}
+else
+{
+    <NoItems Message="You have no transactions"/>
+}
+
+@code {
+
+    [Parameter]
+    [Required]
+    public string Id { get; set; }
+
+    private List<Transaction>? _transactions;
+    private UserProfile? _user;
+    private Identity? _identity;
+    private LineChart<int> _chartRef;
+
+    private double _gainedToday;
+    private double _spentToday;
+
+    private readonly List<string> _backgroundColors = new() {ChartColor.FromRgba(255, 99, 132, 0.2f), ChartColor.FromRgba(54, 162, 235, 0.2f), ChartColor.FromRgba(255, 206, 86, 0.2f), ChartColor.FromRgba(75, 192, 192, 0.2f), ChartColor.FromRgba(153, 102, 255, 0.2f), ChartColor.FromRgba(255, 159, 64, 0.2f)};
+    private readonly List<string> _borderColors = new() {ChartColor.FromRgba(255, 99, 132, 1f), ChartColor.FromRgba(54, 162, 235, 1f), ChartColor.FromRgba(255, 206, 86, 1f), ChartColor.FromRgba(75, 192, 192, 1f), ChartColor.FromRgba(153, 102, 255, 1f), ChartColor.FromRgba(255, 159, 64, 1f)};
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var userTask = client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        var identityTask = client.GetJsonAsync<Identity>($"identities/{Id}", CancellationToken.Token);
+        var transactionTask = client.GetJsonAsync<List<Transaction>>($"identities/{Id}/transactions", CancellationToken.Token);
+
+        await Task.WhenAll(userTask, transactionTask, identityTask);
+
+        _identity = identityTask.Result;
+        _user = userTask.Result;
+        _transactions = transactionTask.Result;
+
+        if (_transactions != null)
+            foreach (var transaction in _transactions.Where(x => x.DateCreated.Date == DateTime.UtcNow.Date))
+            {
+                if (transaction.Increase) _gainedToday += transaction.Amount;
+                else _spentToday += transaction.Amount;
+            }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_transactions is not null)
+        {
+            Logger.LogInformation("Rendering chart");
+
+    // Render the transactions graph
+
+    // Yield labels from transaction logs (date created)
+            var orderedTransactions = _transactions.OrderBy(x => x.DateCreated).ToList();
+            var labels = orderedTransactions.Select(x => x.DateCreated.Date.ToString(CultureInfo.CurrentCulture))
+                .Distinct().ToArray();
+
+            var transactionNumbers = new Dictionary<DateTime, int>();
+            foreach (var transaction in orderedTransactions)
+            {
+                if (transactionNumbers.ContainsKey(transaction.DateCreated.Date))
+                {
+                    transactionNumbers[transaction.DateCreated.Date]++;
+                }
+                else
+                {
+                    transactionNumbers.Add(transaction.DateCreated.Date, 1);
+                }
+            }
+
+    // Now yield just the numbers, since they're already ordered
+            var numbers = transactionNumbers.Values.ToList();
+
+            var dataset = new LineChartDataset<int>
+            {
+                Label = "# of transactions per day",
+                Data = numbers,
+                Fill = true,
+                PointRadius = 3,
+                BackgroundColor = _backgroundColors,
+                BorderColor = _borderColors,
+                CubicInterpolationMode = "monotone"
+            };
+
+            await _chartRef.Clear();
+
+            await _chartRef.AddLabelsDatasetsAndUpdate(labels, dataset);
+
+            Logger.LogInformation("Cleared and rendered new dataset");
+        }
+    }
+
+
+
+}

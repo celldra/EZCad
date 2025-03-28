@@ -1,0 +1,347 @@
+﻿@page "/vehicles"
+@inherits BasePage
+
+@attribute [Authorize]
+
+@inject IHttpClientFactory Factory
+@inject IMessageService MessageService
+@inject ILocalStorageService LocalStorage
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Vehicles</PageTitle>
+}
+
+<LinkAlert User="_user"/>
+
+<Heading Size="HeadingSize.Is1">Vehicles</Heading>
+<Text>View every vehicle associated with your account.</Text>
+<Divider/>
+<Button Clicked="CreateButtonCallback" Color="Color.Primary" Margin="Margin.Is4.FromBottom" Type="ButtonType.Button" Disabled="_form.IsProcessing" Loading="_form.IsProcessing">
+    Create
+</Button>
+
+<!-- Identities -->
+<Row Margin="Margin.Is4.FromBottom">
+    @if (_vehicles?.Any() == true)
+    {
+        <Virtualize TItem="Vehicle" Items="_vehicles" Context="vehicle">
+            <ItemContent>
+                <Column>
+                    <Card Class="mb-3">
+                        <CardHeader Class="p-3">
+                            <Icon Name="IconName.Car" Class="me-1" IconSize="IconSize.Large"/>
+                            <b>@vehicle.Model</b> - @vehicle.LicensePlate.ToUpper()
+                            @if (vehicle.HostIdentity.IsPrimary)
+                            {
+                                <Badge Background="Background.Success" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Associated with active identity">
+                                        <Icon Name="IconName.Check"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                            @if (vehicle.IsStolen)
+                            {
+                                <Badge Background="Background.Danger" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Marked as stolen">
+                                        <Icon Name="IconName.DollarSign"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+
+                            @if (vehicle.MotState != LicenseState.Valid)
+                            {
+                                <Badge Background="Background.Danger" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="@vehicle.MotState.ToString()">
+                                        <Icon Name="IconName.Times"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+
+                            @if (vehicle.InsuranceState != LicenseState.Valid)
+                            {
+                                <Badge Background="Background.Danger" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="@vehicle.InsuranceState.ToString()">
+                                        <Icon Name="IconName.Times"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                        </CardHeader>
+                        <CardBody>
+                            <CardTitle Size="5">
+                            </CardTitle>
+                            <CardText>
+                                <Text>
+                                    <b>Manufacturer: </b>@vehicle.Manufacturer
+                                </Text>
+                                <br/>
+                                <Text>
+                                    <b>Associated with: </b>@vehicle.HostIdentity.LastName, @vehicle.HostIdentity.FirstName
+                                </Text>
+                            </CardText>
+                            <Buttons Class="mt-3">
+                                @if (vehicle.IsStolen)
+                                {
+                                    <Button Clicked="async () => await SetStolenAsync(vehicle, false)" Disabled="_settingStolen" Loading="_settingStolen" Color="Color.Primary">Not stolen</Button>
+                                }
+                                else
+                                {
+                                    <Button Clicked="async () => await SetStolenAsync(vehicle, true)" Disabled="_settingStolen" Loading="_settingStolen" Color="Color.Primary">Stolen</Button>
+                                }
+                                <Button Type="ButtonType.Link" To="@GetEditLink(vehicle)" Color="Color.Secondary">Edit</Button>
+                                <Button Type="ButtonType.Button" Clicked="async () => await DeleteVehicleAsync(vehicle)" Color="Color.Danger">Delete</Button>
+                            </Buttons>
+                        </CardBody>
+                    </Card>
+                </Column>
+            </ItemContent>
+            <Placeholder>
+                Loading...
+            </Placeholder>
+        </Virtualize>
+    }
+    else
+    {
+        <NoItems Message="You have no vehicles, why not create some?"/>
+    }
+</Row>
+
+@if (_identities is not null)
+{
+    <Modal @ref="_createModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_form" StatusChanged="ValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Create vehicle</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Manufacturer</FieldLabel>
+                            <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.Manufacturer">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Model</FieldLabel>
+                            <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.Model">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>License plate</FieldLabel>
+                            <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.LicensePlate">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+                    <Field Class="mb-3">
+                        <FieldLabel>Identity</FieldLabel>
+                        <Select TValue="string" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.IdentityId">
+                            @foreach (var identity in _identities)
+                            {
+                                <SelectItem Value="identity.Id">
+                                    <b>@identity.LastName</b>, @identity.FirstName
+                                </SelectItem>
+                            }
+                        </Select>
+                    </Field>
+
+                    <Field Class="mb-3">
+                        <FieldLabel>MOT state</FieldLabel>
+                        <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.MotState">
+                            @foreach (var state in Enum.GetValues<LicenseState>())
+                            {
+                                <SelectItem Value="state">
+                                    @state.ToString()
+                                </SelectItem>
+                            }
+                        </Select>
+                    </Field>
+
+                    <Field Class="mb-3">
+                        <FieldLabel>Insurance state</FieldLabel>
+                        <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.InsuranceState">
+                            @foreach (var state in Enum.GetValues<LicenseState>())
+                            {
+                                <SelectItem Value="state">
+                                    @state.ToString()
+                                </SelectItem>
+                            }
+                        </Select>
+                    </Field>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideModal">Dismiss</Button>
+                    <Button Clicked="SubmitCallbackAsync" Type="ButtonType.Submit" Loading="_form.IsProcessing" Color="Color.Primary" Disabled="@(_form.IsProcessing || !_form.IsValid)">
+                        Create
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+}
+
+@code {
+
+    private List<Identity>? _identities;
+    private List<Vehicle>? _vehicles;
+    private UserProfile? _user;
+    private Modal? _createModalRef;
+    private bool _settingStolen;
+    private readonly VehicleForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var userTask = client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        var vehicleTask = client.GetJsonAsync<List<Vehicle>>("vehicles", CancellationToken.Token);
+        var identityTask = client.GetJsonAsync<List<Identity>>("identities", CancellationToken.Token);
+
+        await Task.WhenAll(userTask, vehicleTask, identityTask);
+
+        _user = userTask.Result;
+        _vehicles = vehicleTask.Result;
+        _identities = identityTask.Result;
+
+        if (_identities is not null) _form.IdentityId = _identities.FirstOrDefault()?.Id ?? string.Empty;
+    }
+
+    private static string GetEditLink(BaseEntity entity)
+    {
+        return $"/vehicles/{entity.Id}";
+    }
+
+
+    private void CreateButtonCallback()
+    {
+        _createModalRef?.Show();
+    }
+
+    private void HideModal()
+    {
+        _createModalRef?.Hide();
+    }
+
+    private async Task SetStolenAsync(Vehicle vehicle, bool state)
+    {
+        if (_settingStolen) return;
+
+        _settingStolen = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var form = new VehicleForm
+        {
+            IsStolen = state,
+            LicensePlate = vehicle.LicensePlate,
+            Manufacturer = vehicle.Manufacturer,
+            Model = vehicle.Model,
+            IdentityId = vehicle.HostIdentity.Id
+        };
+
+        var response = await client.PutJsonAsync<bool>($"vehicles/{vehicle.Id}", form, CancellationToken.Token);
+
+        if (!response)
+        {
+            await MessageService.Error("The vehicle may not exist", "Failed to set vehicle stolen status", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            await MessageService.Info($"The vehicle ({vehicle.Model} - {vehicle.LicensePlate}) has been updated", "Vehicle updated", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+
+            vehicle.IsStolen = state;
+            await InvokeAsync(StateHasChanged);
+        }
+
+        _settingStolen = false;
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _form.IsValid = args.Status == ValidationStatus.Success;
+    }
+    
+    
+    private async Task DeleteVehicleAsync(Vehicle vehicle)
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.DeleteAsync($"vehicles/{vehicle.Id}", CancellationToken.Token);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await MessageService.Error("The vehicle may not exist", "Failed to delete vehicle", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            await MessageService.Info($"The vehicle ({vehicle.Manufacturer} {vehicle.Model}) has been deleted", "Vehicle deleted", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+
+            _vehicles.RemoveAll(x => x.Id == vehicle.Id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_form.IsValid || _form.IsProcessing) return;
+
+        _form.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PostJsonAsync<CreatedResponse<Vehicle>>("/vehicles", _form, CancellationToken.Token);
+        HideModal();
+
+        if (response is null)
+        {
+            await MessageService.Error(response?.Message, "Failed to create vehicle", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            _vehicles.Add(response.Entity);
+        }
+
+        _form.IsProcessing = false;
+    }
+
+}

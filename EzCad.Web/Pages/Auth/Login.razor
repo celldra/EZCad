@@ -1,0 +1,102 @@
+﻿@page "/login"
+@inherits BasePage
+
+@inject IHttpClientFactory Factory
+@inject AuthenticationStateProvider Provider
+@inject ILocalStorageService LocalStorage
+@inject IMessageService MessageService
+@inject NavigationManager NavigationManager
+
+<Heading Size="HeadingSize.Is1">Login</Heading>
+<Text>If you do not have an account <Link To="/register">click here</Link>. If you need to reset your password, <Link To="/cad/forgot-password">click here</Link>.</Text>
+<Divider Margin="Margin.Is4.FromBottom"/>
+
+@if (Configuration is not null)
+{
+    @if (Configuration.IsDiscordEnabled)
+    {
+        <Button Margin="Margin.Is4.FromBottom" Type="ButtonType.Link" To="@Configuration.DiscordLoginRedirectUrl" Color="Color.Dark" Class="discord">
+            Sign in with Discord
+        </Button>
+    }
+
+    <PageTitle>@Configuration.ServerName - Login</PageTitle>
+    
+    <Validations Mode="ValidationMode.Auto" Model="@_form" StatusChanged="ValidationStateChanged">
+        <DataAnnotationsValidator/>
+        <Validation>
+            <Field Class="w-25 mb-3">
+                <FieldLabel>
+                    Username
+                    <label class="text-danger">*</label>
+                </FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.UserName">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>Make sure this is the username you signed up with.</FieldHelp>
+            </Field>
+        </Validation>
+    
+        <Validation>
+            <Field Class="w-25 mb-3">
+                <FieldLabel>
+                    Password
+                    <label class="text-danger">*</label>
+                </FieldLabel>
+                <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Password" @bind-Text="_form.Password">
+                    <Feedback>
+                        <ValidationError/>
+                    </Feedback>
+                </TextEdit>
+                <FieldHelp>Be sure to follow our password requirements.</FieldHelp>
+            </Field>
+        </Validation>
+    
+        <Button Clicked="SubmitCallbackAsync" Type="ButtonType.Submit" Loading="_form.IsProcessing" Color="Color.Primary" Disabled="@(_form.IsProcessing || !_form.IsValid)">
+            Login
+        </Button>
+    </Validations>
+}
+
+
+@code {
+
+    private readonly LoginForm _form = new();
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_form.IsValid || _form.IsProcessing) return;
+
+        _form.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+
+        var response = await client.PostJsonAsync<LoginResponse>("/auth/login", _form, CancellationToken.Token);
+
+        if (response is {Success: true })
+        {
+            await LocalStorage.SetItemAsStringAsync("auth_token", response.Token, CancellationToken.Token);
+            ((JwtAuthStateProvider) Provider).NotifyUserAuthentication(response.Token);
+
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            await MessageService.Error(response?.Message, "Failed to sign you in", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+
+        _form.IsProcessing = false;
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _form.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+}

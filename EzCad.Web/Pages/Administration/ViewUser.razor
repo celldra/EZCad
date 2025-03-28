@@ -1,0 +1,583 @@
+﻿@page "/admin/user/{Id}"
+@inherits BasePage
+@attribute [Authorize(Roles = RoleValues.Administrator)]
+
+@inject IHttpClientFactory Factory
+@inject ILocalStorageService LocalStorage
+@inject IMessageService MessageService
+@inject IClientJavascriptService ClientJavascriptService
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - View user</PageTitle>
+}
+
+@if (_targetUser is not null)
+{
+    <Heading Size="HeadingSize.Is1">@_targetUser.UserName</Heading>
+    <Text>This user created their account at @_targetUser.DateCreated.</Text>
+    <Divider Margin="Margin.Is4.FromBottom"/>
+    <Buttons Margin="Margin.Is4.FromBottom">
+        <Button Clicked="ShowManageModal" Color="Color.Secondary" Type="ButtonType.Button">
+            Edit roles
+        </Button>
+        @if (_targetUser.Roles.Contains(RoleValues.Banned))
+        {
+            <Button Clicked="SubmitUnbanCallbackAsync" Color="Color.Danger" Type="ButtonType.Button">
+                Unban
+            </Button>
+        }
+        else
+        {
+            <Button Clicked="ShowBanModal" Color="Color.Danger" Type="ButtonType.Button">
+                Ban
+            </Button>
+        }
+        <Button Clicked="DeleteUserAsync" Color="Color.Danger" Type="ButtonType.Button">
+            Delete
+        </Button>
+    </Buttons>
+
+    <Row Margin="Margin.Is4.FromBottom">
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">All-time server logins</CardTitle>
+                    <CardText>
+                        @_logins!.Count
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Server logins today</CardTitle>
+                    <CardText>
+                        @_logins!.Count(x => x.DateCreated.Date == DateTime.UtcNow.Date)
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+        <Column>
+            <Card>
+                <CardBody>
+                    <CardTitle Size="5">Identities</CardTitle>
+                    <CardText>
+                        @_identities!.Count
+                    </CardText>
+                </CardBody>
+            </Card>
+        </Column>
+    </Row>
+
+    <ListGroup Margin="Margin.Is4.FromBottom">
+        <ListGroupItem>
+            <b>Email: </b>@_targetUser.Email
+        </ListGroupItem>
+        @if (_targetUser.IsLinked)
+        {
+            <ListGroupItem>
+                <b>License: </b>@_targetUser.License
+            </ListGroupItem>
+        }
+        <ListGroupItem>
+            <b>Account created at: </b>@_targetUser.DateCreated
+        </ListGroupItem>
+        @if (_targetUser.Roles.Length > 0)
+        {
+            <ListGroupItem>
+                <b>Roles: </b>@_targetUser.Roles.Aggregate(string.Empty, (c, s) => c + $"{s}, ").TrimEnd(' ').TrimEnd(',')
+            </ListGroupItem>
+        }
+
+        @if (_targetUser.Roles.Contains(RoleValues.Banned) && _banResponse is not null)
+        {
+            <ListGroupItem>
+                <b>Banned by: </b>@_banResponse.BannedBy
+            </ListGroupItem>
+            <ListGroupItem>
+                <b>Reason: </b>@_banResponse.Reason
+            </ListGroupItem>
+            <ListGroupItem>
+                <b>Expiration: </b>@(_banResponse.IsPermanent ? "Permanent" : _banResponse.Expiration)
+            </ListGroupItem>
+        }
+    </ListGroup>
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Identities</Heading>
+
+    <Table Margin="Margin.Is4.FromBottom">
+        <TableHeader ThemeContrast="ThemeContrast.Dark">
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Place of birth</TableHeaderCell>
+                <TableHeaderCell>Date of birth</TableHeaderCell>
+                <TableHeaderCell>Balance</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            <Virtualize TItem="Identity" Items="_identities" Context="identity">
+                <ItemContent>
+                    <TableRow>
+                        <TableRowCell>
+                            <a href="/police/identity/@identity.Id">@identity.FirstName @identity.LastName</a>
+                            @if (identity.IsPrimary)
+                            {
+                                <Badge Background="Background.Success" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Primary identity">
+                                        <Icon Name="IconName.Check"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                        </TableRowCell>
+                        <TableRowCell>@identity.BirthPlace</TableRowCell>
+                        <TableRowCell>@identity.DateOfBirth</TableRowCell>
+                        <TableRowCell>@Configuration.FormatCurrency(identity.Money)</TableRowCell>
+                    </TableRow>
+                </ItemContent>
+            </Virtualize>
+        </TableBody>
+    </Table>
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Vehicles</Heading>
+
+    <Table Margin="Margin.Is4.FromBottom">
+        <TableHeader ThemeContrast="ThemeContrast.Dark">
+            <TableRow>
+                <TableHeaderCell>License plate</TableHeaderCell>
+                <TableHeaderCell>Manufacturer</TableHeaderCell>
+                <TableHeaderCell>Model</TableHeaderCell>
+                <TableHeaderCell>Registered to</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            <Virtualize TItem="Vehicle" Items="_vehicles" Context="vehicle">
+                <ItemContent>
+                    <TableRow>
+                        <TableRowCell>
+                            @vehicle.LicensePlate
+                            @if (vehicle.HostIdentity.IsPrimary)
+                            {
+                                <Badge Background="Background.Success" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Associated with active identity">
+                                        <Icon Name="IconName.Check"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                            @if (vehicle.IsStolen)
+                            {
+                                <Badge Background="Background.Danger" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Marked as stolen">
+                                        <Icon Name="IconName.DollarSign"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                        </TableRowCell>
+                        <TableRowCell>@vehicle.Manufacturer</TableRowCell>
+                        <TableRowCell>@vehicle.Model</TableRowCell>
+                        <TableRowCell>@vehicle.HostIdentity.LastName, @vehicle.HostIdentity.FirstName</TableRowCell>
+                    </TableRow>
+                </ItemContent>
+            </Virtualize>
+        </TableBody>
+    </Table>
+
+    <Heading Size="HeadingSize.Is5" Margin="Margin.Is4.FromBottom">Server logins</Heading>
+
+    <Table Margin="Margin.Is4.FromBottom">
+        <TableHeader ThemeContrast="ThemeContrast.Dark">
+            <TableRow>
+                <TableHeaderCell>Username</TableHeaderCell>
+                <TableHeaderCell>Date</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            <Virtualize TItem="Login" Items="_logins" Context="login">
+                <ItemContent>
+                    <TableRow>
+                        <TableRowCell>
+                            @login.Name
+                        </TableRowCell>
+                        <TableRowCell>
+                            @login.DateCreated
+                        </TableRowCell>
+                    </TableRow>
+                </ItemContent>
+            </Virtualize>
+        </TableBody>
+    </Table>
+
+    <Modal @ref="_roleModalRef">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>Manage roles</ModalTitle>
+                <CloseButton/>
+            </ModalHeader>
+            <ModalBody>
+                <ListGroup Margin="Margin.Is4.FromBottom">
+                    @if (_targetUser.Roles.Length <= 0)
+                    {
+                        <Small TextColor="TextColor.Muted">User is not apart of any roles...</Small>
+                    }
+
+                    <Virtualize TItem="string" Items="_targetUser.Roles" Context="role">
+                        <ItemContent>
+                            <ListGroupItem Flex="Flex.JustifyContent.Between.AlignItems.Center">
+                                @role
+
+                                <Button Clicked="async () => await RemoveFromRoleAsync(role)" Type="ButtonType.Button" Color="Color.Danger">
+                                    Remove
+                                </Button>
+                            </ListGroupItem>
+                        </ItemContent>
+                    </Virtualize>
+                </ListGroup>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@HideManageModal">Dismiss</Button>
+                <Button Clicked="ShowCreateModal" Type="ButtonType.Submit" Color="Color.Primary">
+                    Add to role
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+
+    <Modal @ref="_addRoleModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_addRoleForm" StatusChanged="AddRoleValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Add to role</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Role</FieldLabel>
+                            <Select TValue="string" Class="form-control" Disabled="_addRoleForm.IsProcessing" @bind-SelectedValue="_addRoleForm.Role">
+                                @foreach (var role in _roles)
+                                {
+                                    <SelectItem Value="@role.Name">
+                                        @role.Name
+                                    </SelectItem>
+                                }
+                            </Select>
+                        </Field>
+                    </Validation>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideCreateModal">Dismiss</Button>
+                    <Button Clicked="SubmitAddRoleCallbackAsync" Type="ButtonType.Submit" Loading="_addRoleForm.IsProcessing" Color="Color.Primary" Disabled="@(_addRoleForm.IsProcessing || !_addRoleForm.IsValid)">
+                        Add
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+
+    <Modal @ref="_banUserModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_banUserForm" StatusChanged="BanUserValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Ban user</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Reason</FieldLabel>
+                            <TextEdit Disabled="_banUserForm.IsProcessing" Role="TextRole.Text" @bind-Text="_banUserForm.Reason">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>The reason the player was banned from the server</FieldHelp>
+                        </Field>
+                    </Validation>
+
+                    <Field Class="mb-3">
+                        <Check TValue="bool" Disabled="_banUserForm.IsProcessing" @bind-Checked="_banUserForm.IsPermanent">Permanent?</Check>
+                    </Field>
+
+                    @if (!_banUserForm.IsPermanent)
+                    {
+                        <Validation>
+                            <Field Class="mb-3">
+                                <FieldLabel>Ban expiration</FieldLabel>
+                                <DatePicker TValue="DateTime" Disabled="_banUserForm.IsProcessing" @bind-Date="_banUserForm.Expiration"/>
+                                <FieldHelp>This will be the date that the ban will no longer be effective and the player will be able to use all services again.</FieldHelp>
+                            </Field>
+                        </Validation>
+                    }
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideBanModal">Dismiss</Button>
+                    <Button Clicked="SubmitBanCallbackAsync" Type="ButtonType.Submit" Loading="_banUserForm.IsProcessing" Color="Color.Danger" Disabled="@(_banUserForm.IsProcessing || !_banUserForm.IsValid)">
+                        Ban
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+
+    <Modal @ref="_updateBalanaceModalRef">
+        <Validations Mode="ValidationMode.Auto" Model="@_banUserForm" StatusChanged="BanUserValidationStateChanged">
+            <ModalContent Centered>
+                <ModalHeader>
+                    <ModalTitle>Update identity balance</ModalTitle>
+                    <CloseButton/>
+                </ModalHeader>
+                <ModalBody>
+                    <DataAnnotationsValidator/>
+
+                    <Validation>
+                        <Field Class="mb-3">
+                            <FieldLabel>Balance</FieldLabel>
+                            <TextEdit Disabled="_banUserForm.IsProcessing" Role="TextRole.Text" @bind-Text="_banUserForm.Reason">
+                                <Feedback>
+                                    <ValidationError/>
+                                </Feedback>
+                            </TextEdit>
+                            <FieldHelp>The new balance to set for the identity</FieldHelp>
+                        </Field>
+                    </Validation>
+                </ModalBody>
+                <ModalFooter>
+                    <Button Color="Color.Secondary" Clicked="@HideBanModal">Dismiss</Button>
+                    <Button Clicked="SubmitBanCallbackAsync" Type="ButtonType.Submit" Loading="_banUserForm.IsProcessing" Color="Color.Primary" Disabled="@(_banUserForm.IsProcessing || !_banUserForm.IsValid)">
+                        Update
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Validations>
+    </Modal>
+}
+
+@code {
+
+    [Parameter]
+    public string Id { get; set; }
+
+    private Modal? _roleModalRef;
+    private Modal? _addRoleModalRef;
+    private Modal? _banUserModalRef;
+    private Modal? _updateBalanaceModalRef;
+
+    private List<UserRole>? _roles;
+    private List<Login>? _logins;
+    private List<Identity>? _identities;
+    private List<Vehicle>? _vehicles;
+    private UserProfile? _targetUser;
+    private BanResponse? _banResponse;
+
+    private readonly AddRoleForm _addRoleForm = new();
+    private readonly BanUserForm _banUserForm = new();
+    private readonly BalanceForm _balanceForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var targetUserTask = client.GetJsonAsync<UserProfile>($"admin/user/{Id}", CancellationToken.Token);
+        var loginsTask = client.GetJsonAsync<List<Login>>($"admin/user/{Id}/logins", CancellationToken.Token);
+        var identitiesTask = client.GetJsonAsync<List<Identity>>($"admin/user/{Id}/identities", CancellationToken.Token);
+        var vehiclesTask = client.GetJsonAsync<List<Vehicle>>($"admin/user/{Id}/vehicles", CancellationToken.Token);
+        var rolesTask = client.GetJsonAsync<List<UserRole>>("admin/roles", CancellationToken.Token);
+
+        await Task.WhenAll(targetUserTask, loginsTask, vehiclesTask, identitiesTask, rolesTask);
+
+        if (loginsTask.Result is not null) _logins = loginsTask.Result.OrderByDescending(x => x.DateCreated).ToList();
+        _vehicles = vehiclesTask.Result;
+        _identities = identitiesTask.Result;
+        _targetUser = targetUserTask.Result;
+        _roles = rolesTask.Result;
+
+        _banResponse = _targetUser?.BanRecords.MaxBy(x => x.DateBanned);
+    }
+
+    private void ShowCreateModal()
+    {
+        HideManageModal();
+        _addRoleModalRef?.Show();
+    }
+
+    private void HideCreateModal()
+    {
+        _addRoleModalRef?.Hide();
+        ShowManageModal();
+    }
+
+    private void ShowManageModal()
+    {
+        _roleModalRef?.Show();
+    }
+
+    private void HideManageModal()
+    {
+        _roleModalRef?.Hide();
+    }
+
+    private void ShowBanModal()
+    {
+        _banUserModalRef?.Show();
+    }
+
+    private void HideBanModal()
+    {
+        _banUserModalRef?.Hide();
+    }
+
+    private void AddRoleValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _addRoleForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private void BanUserValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _banUserForm.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private async Task SubmitAddRoleCallbackAsync()
+    {
+        if (!_addRoleForm.IsValid || _addRoleForm.IsProcessing || _targetUser is null) return;
+
+        _addRoleForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PutAsync($"/admin/user/{_targetUser.Id}/give-role/{_addRoleForm.Role}", null, CancellationToken.Token);
+
+        HideCreateModal();
+
+        if (response.StatusCode != HttpStatusCode.NoContent)
+        {
+            await MessageService.Error("They could already be apart of the role, you should check the systemd logs", "Failed to add to role", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            var newRoles = _targetUser.Roles.ToList();
+            newRoles.Add(_addRoleForm.Role);
+
+            _targetUser.Roles = newRoles.ToArray();
+        }
+
+        _addRoleForm.IsProcessing = false;
+    }
+
+    private async Task SubmitBanCallbackAsync()
+    {
+        if (!_banUserForm.IsValid || _banUserForm.IsProcessing || _targetUser is null) return;
+
+        _banUserForm.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PostJsonAsync<ErrorResponse>($"/admin/user/{_targetUser.Id}/ban", _banUserForm, CancellationToken.Token);
+        if (response is not null)
+        {
+            await MessageService.Error("Unable to ban the user, you should check the system logs", "Failed to ban user", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+            return;
+        }
+
+        var newRoles = _targetUser.Roles.ToList();
+        newRoles.Add(RoleValues.Banned);
+
+        _targetUser.Roles = newRoles.ToArray();
+
+        HideBanModal();
+
+        _banUserForm.IsProcessing = false;
+    }
+
+    private async Task SubmitUnbanCallbackAsync()
+    {
+        if (_targetUser is null) return;
+
+        var newRoles = _targetUser.Roles.ToList();
+        newRoles.Remove(RoleValues.Banned);
+
+        _targetUser.Roles = newRoles.ToArray();
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.DeleteAsync($"/admin/user/{Id}/remove-role/{RoleValues.Banned}", CancellationToken.Token);
+        if (response.StatusCode != HttpStatusCode.NoContent)
+        {
+            await MessageService.Error("Unable to unban the user, you should check the system logs", "Failed to ban user", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+    }
+
+    private async Task DeleteUserAsync()
+    {
+        if (_targetUser is null) return;
+
+        if (await MessageService.Confirm("Are you sure you want to delete this user? This is not reversible and all their data will be deleted immediately!", "Delete user", options =>
+        {
+            options.MessageIcon = false;
+            options.CenterMessage = true;
+            options.ConfirmButtonColor = Color.Danger;
+            options.ConfirmButtonText = "Yes, delete them";
+        }))
+        {
+            var client = Factory.CreateClient("api");
+            client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+            var response = await client.DeleteAsync($"/admin/user/{_targetUser.Id}/delete", CancellationToken.Token);
+            if (response.StatusCode != HttpStatusCode.NoContent)
+            {
+                await MessageService.Error("Couldn't delete the user, check the logs for more information", "Failed to delete user", options =>
+                {
+                    options.CenterMessage = true;
+                    options.ShowMessageIcon = false;
+                });
+                return;
+            }
+
+            await ClientJavascriptService.GoBackAsync();
+        }
+    }
+
+    private async Task RemoveFromRoleAsync(string roleName)
+    {
+        if (_targetUser is null) return;
+
+        var newRoles = _targetUser.Roles.ToList();
+        newRoles.Remove(roleName);
+
+        _targetUser.Roles = newRoles.ToArray();
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.DeleteAsync($"/admin/user/{Id}/remove-role/{roleName}", CancellationToken.Token);
+        if (response.StatusCode != HttpStatusCode.NoContent)
+        {
+            await MessageService.Error("Unable to remove the role from the user, they may not even be apart of the role in the first place.", "Failed to remove role", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+    }
+
+}

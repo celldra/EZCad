@@ -1,0 +1,363 @@
+﻿@page "/identities"
+@inherits BasePage
+
+@attribute [Authorize]
+
+@inject IHttpClientFactory Factory
+@inject IMessageService MessageService
+@inject ILocalStorageService LocalStorage
+
+@if (Configuration is not null)
+{
+    <PageTitle>@Configuration.ServerName - Identities</PageTitle>
+}
+
+<LinkAlert User="_user"/>
+
+<Heading Size="HeadingSize.Is1">Identities</Heading>
+<Text> View every identity you have associated with your account and make any primary at any time.</Text>
+<Divider/>
+<Button Clicked="CreateButtonCallback" Color="Color.Primary" Margin="Margin.Is4.FromBottom" Type="ButtonType.Button" Disabled="_form.IsProcessing" Loading="_form.IsProcessing">
+    Create
+</Button>
+
+@if (_identities is not null && _identities.All(x => !x.IsPrimary))
+{
+    <Alert Color="Color.Danger" Visible>
+        <b>This looks bad...</b> You have <b>no primary</b> identities, please set one as <b>primary</b> or staff will continue to complain to you about the CAD.
+    </Alert>
+}
+
+<!-- Identities -->
+<Row Margin="Margin.Is4.FromBottom">
+    @if (_identities?.Any() == true)
+    {
+        <Virtualize TItem="Identity" Items="_identities" Context="identity">
+            <ItemContent>
+                <Column>
+                    <Card Class="mb-3">
+                        <CardHeader Class="p-3">
+                            <Icon Name="IconName.IdCard" Class="me-1" IconSize="IconSize.Large"/>
+                            <b>@identity.LastName</b>, @identity.FirstName
+                            @if (identity.IsPrimary)
+                            {
+                                <Badge Background="Background.Success" Margin="Margin.Is2.FromStart">
+                                    <Tooltip Text="Primary identity">
+                                        <Icon Name="IconName.Check"/>
+                                    </Tooltip>
+                                </Badge>
+                            }
+                        </CardHeader>
+                        <CardBody>
+                            <CardTitle Size="5">
+                            </CardTitle>
+                            <CardText>
+                                <Text>
+                                    <b>Sex: </b>@identity.Sex
+                                </Text>
+                                <br/>
+                                <Text>
+                                    <b>Date of birth: </b>@identity.DateOfBirth
+                                </Text>
+                                <br/>
+                                <Text>
+                                    <b>Place of birth: </b>@identity.BirthPlace
+                                </Text>
+                            </CardText>
+                            <Buttons Class="mt-3">
+                                @if (identity.IsPrimary)
+                                {
+                                    <Button Clicked="async () => await SetPrimaryAsync(identity, false)" Disabled="_settingPrimaryValue" Loading="_settingPrimaryValue" Color="Color.Primary">Remove as primary</Button>
+                                }
+                                else if (!_identities.Any(x => x.IsPrimary))
+                                {
+                                    <Button Clicked="async () => await SetPrimaryAsync(identity, true)" Disabled="_settingPrimaryValue" Loading="_settingPrimaryValue" Color="Color.Primary">Set as primary</Button>
+                                }
+                                else
+                                {
+                                    <Tooltip Text="You need to remove your current primary identity to set this one as primary">
+                                        <Button Disabled Color="Color.Primary">Set as primary</Button>
+                                    </Tooltip>
+                                }
+                                <Button Type="ButtonType.Link" To="@GetEditLink(identity)" Color="Color.Secondary">Edit</Button>
+                                <Button Type="ButtonType.Link" To="@GetBankingLink(identity)" Color="Color.Secondary">Manage bank</Button>
+                                <Button Type="ButtonType.Button" Clicked="async () => await DeleteIdentityAsync(identity)" Color="Color.Danger">Delete</Button>
+                            </Buttons>
+                        </CardBody>
+                    </Card>
+                </Column>
+            </ItemContent>
+            <Placeholder>
+                Loading...
+            </Placeholder>
+        </Virtualize>
+    }
+    else
+    {
+        <NoItems Message="You have no identities, why not create some?"/>
+    }
+</Row>
+
+
+<Modal @ref="_createModalRef">
+    <Validations Mode="ValidationMode.Auto" Model="@_form" StatusChanged="ValidationStateChanged">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>Create identity</ModalTitle>
+                <CloseButton/>
+            </ModalHeader>
+            <ModalBody>
+                <DataAnnotationsValidator/>
+                <Validation>
+                    <Field Class="mb-3">
+                        <FieldLabel>First name</FieldLabel>
+                        <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.FirstName">
+                            <Feedback>
+                                <ValidationError/>
+                            </Feedback>
+                        </TextEdit>
+                        <FieldHelp>The first name or forename of your character</FieldHelp>
+                    </Field>
+                </Validation>
+                <Validation>
+                    <Field Class="mb-3">
+                        <FieldLabel>Last name</FieldLabel>
+                        <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.LastName">
+                            <Feedback>
+                                <ValidationError/>
+                            </Feedback>
+                        </TextEdit>
+                        <FieldHelp>The last name or surname of your character</FieldHelp>
+                    </Field>
+                </Validation>
+
+                <Validation>
+                    <Field Class="mb-3">
+                        <FieldLabel>Place of birth</FieldLabel>
+                        <TextEdit Disabled="_form.IsProcessing" Role="TextRole.Text" @bind-Text="_form.BirthPlace">
+                            <Feedback>
+                                <ValidationError/>
+                            </Feedback>
+                        </TextEdit>
+                        <FieldHelp>This is the city, country or area you were born at.</FieldHelp>
+                    </Field>
+                </Validation>
+
+                <Validation>
+                    <Field Class="mb-3">
+                        <FieldLabel>Date of birth</FieldLabel>
+                        <DatePicker TValue="DateTime" Disabled="_form.IsProcessing" @bind-Date="_form.DateOfBirth"/>
+                    </Field>
+                    <FieldHelp>Ensure this is the date of birth for your character, not your real date of birth.</FieldHelp>
+                </Validation>
+
+                <Field Class="mt-3">
+                    <FieldLabel>Sex</FieldLabel>
+                    <Select TValue="Sex" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.Sex">
+                        @foreach (var state in Enum.GetValues<Sex>())
+                        {
+                            <SelectItem Value="state">
+                                @state.ToString()
+                            </SelectItem>
+                        }
+                    </Select>
+                </Field>
+
+                <Field Class="mb-3">
+                    <FieldLabel>Driving license</FieldLabel>
+                    <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.DrivingLicense">
+                        @foreach (var state in Enum.GetValues<LicenseState>())
+                        {
+                            <SelectItem Value="state">
+                                @state.ToString()
+                            </SelectItem>
+                        }
+                    </Select>
+                </Field>
+
+                <Field Class="mb-3">
+                    <FieldLabel>Weapons license</FieldLabel>
+                    <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.WeaponsLicense">
+                        @foreach (var state in Enum.GetValues<LicenseState>())
+                        {
+                            <SelectItem Value="state">
+                                @state.ToString()
+                            </SelectItem>
+                        }
+                    </Select>
+                </Field>
+
+                <Field Class="mb-3">
+                    <FieldLabel>Hunting license</FieldLabel>
+                    <Select TValue="LicenseState" Class="form-control" Disabled="_form.IsProcessing" @bind-SelectedValue="_form.HuntingLicense">
+                        @foreach (var state in Enum.GetValues<LicenseState>())
+                        {
+                            <SelectItem Value="state">
+                                @state.ToString()
+                            </SelectItem>
+                        }
+                    </Select>
+                </Field>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@HideModal">Dismiss</Button>
+                <Button Clicked="SubmitCallbackAsync" Type="ButtonType.Submit" Loading="_form.IsProcessing" Color="Color.Primary" Disabled="@(_form.IsProcessing || !_form.IsValid)">
+                    Create
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Validations>
+</Modal>
+
+@code {
+
+    private List<Identity>? _identities;
+    private UserProfile? _user;
+    private Modal? _createModalRef;
+    private readonly IdentityForm _form = new();
+    private bool _settingPrimaryValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var userTask = client.GetJsonAsync<UserProfile>("user", CancellationToken.Token);
+        var identityTask = client.GetJsonAsync<List<Identity>>("identities", CancellationToken.Token);
+
+        await Task.WhenAll(userTask, identityTask);
+
+        _user = userTask.Result;
+        _identities = identityTask.Result;
+    }
+
+    private static string GetEditLink(BaseEntity identity)
+    {
+        return $"/identities/{identity.Id}";
+    }
+
+    private static string GetBankingLink(BaseEntity identity)
+    {
+        return $"/identities/{identity.Id}/banking";
+    }
+
+
+    private void CreateButtonCallback()
+    {
+        _createModalRef?.Show();
+    }
+
+    private void HideModal()
+    {
+        _createModalRef?.Hide();
+    }
+
+    private void ValidationStateChanged(ValidationsStatusChangedEventArgs args)
+    {
+        _form.IsValid = args.Status == ValidationStatus.Success;
+    }
+
+    private async Task DeleteIdentityAsync(Identity identity)
+    {
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.DeleteAsync($"identities/{identity.Id}", CancellationToken.Token);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await MessageService.Error("The identity may not exist", "Failed to delete identity", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            await MessageService.Info($"The identity ({identity.LastName}, {identity.FirstName}) has been deleted", "Identity deleted", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+
+            _identities.RemoveAll(x => x.Id == identity.Id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SetPrimaryAsync(Identity identity, bool state)
+    {
+        if (_settingPrimaryValue) return;
+
+        _settingPrimaryValue = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var form = new IdentityForm
+        {
+            BirthPlace = identity.BirthPlace,
+            FirstName = identity.FirstName,
+            LastName = identity.LastName,
+            IsPrimary = state,
+            DateOfBirth = identity.DateOfBirth,
+            Sex = identity.Sex
+        };
+
+        identity.IsPrimary = state;
+
+        var response = await client.PutJsonAsync<bool>($"identities/{identity.Id}", form, CancellationToken.Token);
+
+        if (!response)
+        {
+            await MessageService.Error("The identity may not exist", "Failed to set identity primary status", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            await MessageService.Info($"The identity ({identity.LastName}, {identity.FirstName}) has been updated", "Identity updated", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+
+            identity.IsPrimary = state;
+            await InvokeAsync(StateHasChanged);
+        }
+
+        _settingPrimaryValue = false;
+    }
+
+    private async Task SubmitCallbackAsync()
+    {
+        if (!_form.IsValid || _form.IsProcessing) return;
+
+        _form.IsProcessing = true;
+
+        var client = Factory.CreateClient("api");
+        client.SetAuthorizationHeader(await LocalStorage.GetItemAsStringAsync("auth_token"));
+
+        var response = await client.PostJsonAsync<CreatedResponse<Identity>>("/identities", _form, CancellationToken.Token);
+
+        HideModal();
+
+        if (response is null)
+        {
+            await MessageService.Error(response?.Message, "Failed to create identity", options =>
+            {
+                options.CenterMessage = true;
+                options.ShowMessageIcon = false;
+            });
+        }
+        else
+        {
+            _identities.Add(response.Entity);
+        }
+
+        _form.IsProcessing = false;
+    }
+
+}
