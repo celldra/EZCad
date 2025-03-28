@@ -1,6 +1,8 @@
 # EZCadSync
 A companion FiveM script that assists with syncing player states and permissions with the EZCad FOSS FiveM CAD.
 
+> This also came with a copy of my own basic commands library, Gallagher Commands. Yes I like Oasis.
+
 ## Editing
 
 Edit it, open `ezcadsync.sln` in Visual Studio or Rider (if you're fancy 😎)
