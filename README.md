@@ -53,7 +53,7 @@ And then, create an account with the username `harry`, and then go and call
 HTTP GET to /setup-roles
 ```
 
-That'll create all the default roles available and give the `harry` account all of them.
+That'll create all the default roles available and give the `harry` account all of them. For the sync script, check the `README.md` file inside the `EzCadSync` folder.
 
 ## License
 Licensed under MIT. See LICENSE
